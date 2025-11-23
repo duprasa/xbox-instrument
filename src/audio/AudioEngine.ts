@@ -88,7 +88,7 @@ class AudioEngine {
         "C8": "C8.mp3"
       },
       release: 1,
-      baseUrl: "/samples/piano/",
+      baseUrl: "samples/piano/",
       volume: volume
     });
   }

@@ -116,7 +116,9 @@ function App() {
       // Chromatic: 12 fixed notes
       // For Chords: Just Note Name? Or Roman I, bII?
       // Let's keep it simple for Chromatic for now: Note Name
-      return NOTES.map(n => ({ main: n, sub: isChordWheel ? 'Maj' : '' }));
+      return NOTES.map(n => {
+        return { main: n, sub: '' };
+      });
     }
 
     const labels = new Array(7).fill({ main: '', sub: '' });
@@ -422,7 +424,16 @@ function App() {
     if (noteTrigger > 0.05 && noteIdx !== null) {
       const selectedItem = melodyLabels[noteIdx];
       // Handle object label
-      const selectedLabel = typeof selectedItem === 'string' ? selectedItem : selectedItem?.sub;
+      let selectedLabel = '';
+      if (typeof selectedItem === 'string') {
+        selectedLabel = selectedItem;
+      } else {
+        if (currentMode === 'Chromatic') {
+           selectedLabel = selectedItem.main;
+        } else {
+           selectedLabel = selectedItem.sub || '';
+        }
+      }
 
       if (selectedLabel) {
         // Ideally we'd find the exact octave from scaleNotes, but labels are just names.
@@ -450,14 +461,31 @@ function App() {
     const chordTrigger = gamepad.triggers.left;
     if (chordTrigger > 0.05 && chordIdx !== null) {
       const selectedItem = chordLabels[chordIdx];
-      // Handle object label (use sub which is the note name)
-      const selectedLabel = typeof selectedItem === 'string' ? selectedItem : selectedItem?.sub;
+      // Handle object label
+      // For Diatonic: Main is Roman (I), Sub is Note (C). We want Note.
+      // For Chromatic: Main is Note (C), Sub is Quality (Maj). We want Note.
+      let selectedLabel = '';
+      if (typeof selectedItem === 'string') {
+        selectedLabel = selectedItem;
+      } else {
+        // Logic to pick the correct identifier based on mode
+        if (currentMode === 'Chromatic') {
+           selectedLabel = selectedItem.main;
+        } else {
+           selectedLabel = selectedItem.sub || '';
+        }
+      }
 
       if (selectedLabel) {
         let chordNotes: string[] = [];
         
         // Find full root note
-        const rootForChord = scaleNotes.find(n => n.startsWith(selectedLabel)) || selectedLabel + '4';
+        let rootForChord = '';
+        if (currentMode === 'Chromatic') {
+           rootForChord = selectedLabel + '4';
+        } else {
+           rootForChord = scaleNotes.find(n => n.startsWith(selectedLabel)) || selectedLabel + '4';
+        }
         
         // Find Scale Degree Index for Diatonic Logic
         // We need to know where this note sits in the current *Scale* (not the UI wheel).
@@ -575,7 +603,7 @@ function App() {
                 className={`px-3 py-1 text-sm rounded-md transition-colors ${chordInstrument === 'piano' ? 'bg-purple-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
               >
                 Piano
-              </button>
+        </button>
             </div>
           </div>
 
@@ -593,7 +621,7 @@ function App() {
               label="CHORDS"
               className="w-80 h-80"
             />
-          </div>
+      </div>
 
           {/* Chord Info */}
           <div className="absolute -bottom-16 left-0 right-0 text-center h-16 flex flex-col items-center justify-end">
@@ -669,10 +697,10 @@ function App() {
           A (Min)
         </div>
         <div className={`px-4 py-2 rounded-lg border ${gamepad.buttons.y ? 'bg-yellow-500/50 border-yellow-400' : 'border-slate-700 bg-slate-800'}`}>
-          B (Maj)
+          Y (Maj)
         </div>
         <div className={`px-4 py-2 rounded-lg border ${gamepad.buttons.b ? 'bg-red-500/50 border-red-400' : 'border-slate-700 bg-slate-800'}`}>
-          Y (Sus)
+          B (Sus)
         </div>
       </div>
 
