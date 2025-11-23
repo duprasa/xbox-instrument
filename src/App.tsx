@@ -5,14 +5,14 @@ import type { GamepadState } from './hooks/useGamepad';
 import { RadialMenu } from './components/RadialMenu';
 import { Instructions } from './components/Instructions';
 import { 
-  NOTES, 
   MODES, 
   getScaleNotes, 
   getChordNotes, 
   getDiatonicChord,
   applyGenericInversion,
   detectChordName,
-  getNextRootCircleOfFifths
+  getNextRootCircleOfFifths,
+  PREFERRED_ROOT_NAMES
 } from './utils/music-theory';
 import type { ScaleMode, ChordType } from './utils/music-theory';
 import { audioEngine } from './audio/AudioEngine';
@@ -51,16 +51,12 @@ function App() {
   const [isAudioReady, setIsAudioReady] = useState(false);
 
   // Computed Theory Data
-  const currentRoot = NOTES[rootNoteIndex];
+  // Use preferred root names (e.g. Eb instead of D#) to avoid double sharps in Major keys
+  const currentRoot = PREFERRED_ROOT_NAMES[rootNoteIndex];
   const currentMode = SCALE_MODES[scaleModeIndex];
   const currentRootWithOctave = `${currentRoot}4`; // Base octave 4
   
-  // Generate Fixed 12 Chromatic Notes for Wheel (C4 base)
-  const chromaticWheelNotes = useMemo(() => {
-    return getScaleNotes('C4', 'Chromatic', 1);
-  }, []);
-
-  // Generate Scale Notes (for theory logic)
+  // Generate Scale Notes
   const scaleNotes = useMemo(() => {
     if (currentMode === 'Chromatic') {
       return getScaleNotes(currentRootWithOctave, 'Chromatic', 1);
@@ -68,17 +64,59 @@ function App() {
     return getScaleNotes(currentRootWithOctave, currentMode, 1); 
   }, [currentRootWithOctave, currentMode]);
 
-  // Determine Active Notes in Scale
-  const activeNotesSet = useMemo(() => {
-    return new Set(scaleNotes.map(n => n.replace(/\d+/, '')));
-  }, [scaleNotes]);
-
-  // Display Labels (Fixed 12 Chromatic)
-  const scaleLabels = useMemo(() => {
-     return chromaticWheelNotes.map(n => n.replace(/\d+/, ''));
-  }, [chromaticWheelNotes]);
+  // Display Labels - Map Fixed Positions to Scale Notes
+  // Requirements:
+  // 1. Show only the 7 notes in the scale (or 12 if Chromatic).
+  // 2. Preserve positions relative to "Root at Top" or "C at Top"?
+  //    User said: "don't change the position of C,D,E,F,G,A,B just sharpen and flatten"
+  //    This implies a FIXED Layout where the top slice is ALWAYS some form of C (C, C#, Cb).
+  //    The next slice is D (D, D#, Db), etc.
+  //    So we need 7 slices fixed: C-ish, D-ish, E-ish, F-ish, G-ish, A-ish, B-ish.
+  //    But wait, a scale might have C# and D# and E?
+  //    Example D Major: D, E, F#, G, A, B, C#
+  //    If we map to fixed C-D-E-F-G-A-B slots:
+  //    Slot C: C#
+  //    Slot D: D
+  //    Slot E: E
+  //    Slot F: F#
+  //    Slot G: G
+  //    Slot A: A
+  //    Slot B: B
+  //    This covers all 7 notes.
+  //    What if we have a scale with 8 notes? (Bebop?) - We only support 7-note modes + Chromatic.
+  //    What if a scale has no C-ish note? (e.g. B# and C# but no C natural).
+  //    Standard Diatonic scales always have one of each letter name (heptatonic).
+  //    So we can map each scale note to its letter name slot!
   
-  const sliceCount = 12;
+  const fixedSlots = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+  
+  const scaleLabels = useMemo(() => {
+     if (currentMode === 'Chromatic') {
+       // For chromatic, we likely need 12 slices.
+       // But user asked for "continue to just display the 7...". 
+       // If mode is Chromatic, maybe we revert to 12 slices? 
+       // Or maybe we just show C C# D D# ... which is not 7.
+       // Let's assume Chromatic mode needs 12 slices.
+       return getScaleNotes(currentRootWithOctave, 'Chromatic', 1).map(n => n.replace(/\d+/, ''));
+     }
+
+     // For Diatonic Modes (7 notes):
+     // Map each note in `scaleNotes` to its corresponding fixed slot.
+     const mapping = new Array(7).fill('');
+     
+     scaleNotes.forEach(note => {
+       const noteName = note.replace(/\d+/, '');
+       const letter = noteName.charAt(0); // 'C', 'D', etc.
+       const slotIndex = fixedSlots.indexOf(letter);
+       if (slotIndex !== -1) {
+         mapping[slotIndex] = noteName;
+       }
+     });
+     
+     return mapping;
+  }, [scaleNotes, currentMode, currentRootWithOctave]);
+  
+  const sliceCount = scaleLabels.length;
 
   const handleStart = async () => {
     await audioEngine.initialize();
@@ -190,46 +228,20 @@ function App() {
     const noteTrigger = gamepad.triggers.right;
     if (noteTrigger > 0.05 && noteIdx !== null) {
        const selectedLabel = scaleLabels[noteIdx];
-       // Check if note is in active scale
-       // Note: We need to handle Enharmonics if strictly comparing strings?
-       // Our getScaleNotes returns sharps. 'C#' etc.
-       // activeNotesSet has sharps.
-       // So direct check is fine.
        
-       const isActiveNote = activeNotesSet.has(selectedLabel);
-       
-       if (isActiveNote) {
-         // We need the actual pitch for playback.
-         // We can reconstruct it or find it in the scale notes.
-         // Actually, `chromaticWheelNotes[noteIdx]` gives us the Note + Octave (e.g. C4, C#4).
-         // But we need to respect the Root Octave shift?
-         // The chromatic wheel is fixed C4-B4.
-         // The current scale might be based on D4, so it goes D4-D5?
-         // If we play C# from the wheel, and root is D, C# is the major 7th.
-         // Should it be C#5 or C#4?
-         // "transpose the chord by 1 note... shift the chords... to the new range"
-         // The global transpose (now inversion offset) was removed.
-         // But we have `currentRoot`.
-         // If I select "D" on the wheel, and I am in Key of D, it plays D.
-         // If I am in Key of C, and select D, it plays D.
-         // The octave usually follows the circle.
-         // Let's just use the fixed chromatic note for now, maybe adjusted by global octave if we had one.
-         // Or better: find the corresponding note in the generated `scaleNotes` array?
-         // But `scaleNotes` is no longer used for indexing.
-         
-         // Let's just use the note from the fixed wheel (C4 base).
-         // And maybe shift octave if the current root is high? 
-         // Default C4 base is fine.
-         
-         const targetNote = chromaticWheelNotes[noteIdx];
-         
+       if (selectedLabel) {
+         // Ideally we'd find the exact octave from scaleNotes, but labels are just names.
+         // Let's find the full note string in scaleNotes that matches.
+         const fullNote = scaleNotes.find(n => n.startsWith(selectedLabel));
+         const noteToPlay = fullNote || selectedLabel + '4'; // Fallback
+
          // Remap trigger value (0.05-1.0) to velocity (0.3-1.0) for better response
          const velocity = 0.5 + (noteTrigger * 0.7);
 
-         if (targetNote !== playingNote) {
+         if (noteToPlay !== playingNote) {
            if (playingNote) audioEngine.stopNote(playingNote);
-           audioEngine.playNote(targetNote, velocity); 
-           setPlayingNote(targetNote);
+           audioEngine.playNote(noteToPlay, velocity); 
+           setPlayingNote(noteToPlay);
          }
        } 
     } else {
@@ -244,26 +256,18 @@ function App() {
     if (chordTrigger > 0.05 && chordIdx !== null) {
        const selectedLabel = scaleLabels[chordIdx];
        
-       // Only play if in scale (or if we allow chromatic chords?)
-       // Usually strictly diatonic means only scale degrees.
-       // But user might want to play non-diatonic chords?
-       // The prompt said "notes wheel... unaffected by inversions".
-       // It implies chords wheel behaves similarly.
-       // If I pick a note not in scale, do I get a chord?
-       // Probably not for "Diatonic" mode.
-       
-       if (activeNotesSet.has(selectedLabel)) {
+       if (selectedLabel) {
          let chordNotes: string[] = [];
-         const rootForChord = chromaticWheelNotes[chordIdx];
          
-         // We need to know the Scale Degree to generate Diatonic Chord.
-         // We can find the index of this note in the current Scale.
-         const currentScale = getScaleNotes(currentRootWithOctave, currentMode, 2); // 2 octaves to be safe
-         // Find match (ignoring octave for matching)
-         const rootName = selectedLabel;
-         const degreeIndex = currentScale.findIndex(n => n.startsWith(rootName));
+         // Find full root note
+         const rootForChord = scaleNotes.find(n => n.startsWith(selectedLabel)) || selectedLabel + '4';
          
-         if (degreeIndex !== -1) {
+         // Find Scale Degree Index for Diatonic Logic
+         // We need to know where this note sits in the current *Scale* (not the UI wheel).
+         // e.g. in D Major, D is index 0. F# is index 2.
+         const degreeIndex = scaleNotes.findIndex(n => n.startsWith(selectedLabel));
+         
+         if (degreeIndex !== -1 || currentMode === 'Chromatic') {
              if (activeChordType) {
                // User override
                const baseChord = getChordNotes(rootForChord, activeChordType, 0);
@@ -274,7 +278,9 @@ function App() {
                   chordNotes = applyGenericInversion(baseChord, chordInversionOffset);
                } else {
                   // Diatonic
-                  const baseChord = getDiatonicChord(currentScale, degreeIndex, true);
+                  // We might need extended scale for chord generation if it wraps around
+                  const extendedScale = getScaleNotes(currentRootWithOctave, currentMode, 2);
+                  const baseChord = getDiatonicChord(extendedScale, degreeIndex, true);
                   chordNotes = applyGenericInversion(baseChord, chordInversionOffset);
                }
              }
@@ -298,7 +304,7 @@ function App() {
        }
     }
 
-  }, [gamepad, chromaticWheelNotes, activeNotesSet, chordInversionOffset, activeChordType, sliceCount, currentRootWithOctave, currentMode]); 
+  }, [gamepad, scaleLabels, scaleNotes, chordInversionOffset, activeChordType, sliceCount, currentRootWithOctave, currentMode]); 
 
   return (
     <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-start p-8 font-sans pt-32">
@@ -355,7 +361,6 @@ function App() {
           />
           <RadialMenu 
             items={scaleLabels} 
-            activeItems={activeNotesSet}
             selectedIndex={selectedChordIndex}
             previewIndex={previewChordIndex}
             isActive={gamepad.triggers.left > 0.05}
@@ -388,7 +393,6 @@ function App() {
           />
           <RadialMenu 
             items={scaleLabels} 
-            activeItems={activeNotesSet}
             selectedIndex={selectedNoteIndex}
             previewIndex={previewNoteIndex}
             isActive={gamepad.triggers.right > 0.05}

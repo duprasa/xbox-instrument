@@ -4,7 +4,6 @@ import { clsx } from 'clsx';
 
 interface RadialMenuProps {
   items: string[];
-  activeItems?: Set<string>; // New prop for scale filtering
   selectedIndex: number | null;
   previewIndex?: number | null;
   isActive: boolean; // e.g. trigger pulled
@@ -13,7 +12,7 @@ interface RadialMenuProps {
   className?: string;
 }
 
-export const RadialMenu: React.FC<RadialMenuProps> = ({ items, activeItems, selectedIndex, previewIndex, isActive, color = 'blue', label, className }) => {
+export const RadialMenu: React.FC<RadialMenuProps> = ({ items, selectedIndex, previewIndex, isActive, color = 'blue', label, className }) => {
   const radius = 100;
   const center = 110; // Center shifted to accommodate stroke width
   const viewBoxSize = 220; // Increased from 200 to prevent clipping
@@ -50,10 +49,6 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, activeItems, sele
           
           const largeArcFlag = anglePerSlice > 180 ? 1 : 0;
           
-          // Check if item is in active scale
-          const itemLabel = items[index];
-          const isInScale = !activeItems || activeItems.has(itemLabel);
-
           const isSelected = index === selectedIndex;
           const isPreview = index === previewIndex && !isSelected;
           
@@ -70,18 +65,17 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, activeItems, sele
               return color === 'blue' ? '#60a5fa' : '#c084fc'; // Selected (Dim)
             }
             if (isPreview) return '#334155';
-            // Dim inactive notes significantly
-            return isInScale ? '#1e293b' : '#0f172a';
+            return '#1e293b';
           };
           
           const getStrokeColor = () => {
-             return isInScale ? '#0f172a' : '#0f172a'; // Could change border too
+             return '#0f172a';
           };
           
           const getOpacity = () => {
              if (isSelected) return "opacity-100";
              if (isPreview) return "opacity-80";
-             return isInScale ? "opacity-50" : "opacity-20"; // Fade out inactive
+             return "opacity-50";
           };
 
           return (
@@ -111,7 +105,7 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, activeItems, sele
                      textAnchor="middle"
                      dominantBaseline="middle"
                      transform={`rotate(90 ${tx} ${ty})`} // Counter-rotate text because parent is rotated -90
-                     className={clsx("pointer-events-none select-none", !isInScale && "opacity-30 fill-slate-500")}
+                     className="pointer-events-none select-none"
                    >
                      {item}
                    </text>

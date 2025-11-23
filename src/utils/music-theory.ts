@@ -16,6 +16,12 @@ export const MODES: Record<ScaleMode, number[]> = {
   Chromatic: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
 };
 
+// Preferred Root Names for Circle of Fifths to avoid double sharps/flats
+// C, Db, D, Eb, E, F, F#, G, Ab, A, Bb, B
+export const PREFERRED_ROOT_NAMES = [
+  'C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'
+];
+
 export const CHORD_INTERVALS: Record<ChordType, number[]> = {
   maj: [0, 4, 7],
   min: [0, 3, 7],
@@ -30,7 +36,8 @@ export const CHORD_INTERVALS: Record<ChordType, number[]> = {
 
 // Helper to parse note into { name, octave, absValue }
 const parseNote = (note: string) => {
-  const match = note.match(/^([A-G]#?)(-?\d+)?$/);
+  // Supports sharps (#, ##) and flats (b, bb)
+  const match = note.match(/^([A-G](?:#{1,2}|b{1,2})?)(-?\d+)?$/);
   if (!match) return { name: 'C', octave: 4, absValue: 48 }; // Default C4
   
   const name = match[1];
@@ -50,7 +57,58 @@ const getNoteFromIndex = (index: number, octave: number) => {
 
 // Helper to get semitone index of a note
 const getNoteIndex = (noteName: string) => {
-  return NOTES.indexOf(noteName);
+  // Basic lookup in NOTES array (sharps)
+  let index = NOTES.indexOf(noteName);
+  if (index !== -1) return index;
+  
+  // Handle flats if passed (convert to sharps) - implicit via accidental parsing below
+  // Also handle standard enharmonics if not found
+  
+  // Simple normalize function before lookup
+  // But our input `noteName` might be "E#" from user or other logic.
+  // Since `NOTES` only has C, C#, D... we need to be robust.
+  
+  // Try stripping accidental
+  const letter = noteName.charAt(0);
+  const accidental = noteName.slice(1);
+  
+  let baseIndex = NOTES.indexOf(letter);
+  if (baseIndex === -1) return 0; // Should not happen for valid notes
+  
+  if (accidental === '#') baseIndex += 1;
+  if (accidental === 'b') baseIndex -= 1;
+  if (accidental === '##') baseIndex += 2;
+  if (accidental === 'bb') baseIndex -= 2;
+  
+  return (baseIndex + 12) % 12;
+};
+
+// Helper to spell a note correctly based on target letter and absolute pitch
+const spellNote = (targetIndex: number, targetLetter: string): string => {
+  const letterIndex = NOTES.indexOf(targetLetter);
+  
+  // Calculate difference in semitones
+  // e.g. Target C# (1), Letter C (0) -> Diff 1 -> C#
+  // Target F (5), Letter E (4) -> Diff 1 -> E#
+  
+  // We need shortest distance direction? 
+  // Usually sharp/flat count is small (-2 to +2).
+  
+  let diff = targetIndex - letterIndex;
+  
+  // Normalize diff to range [-6, 6] roughly
+  if (diff > 6) diff -= 12;
+  if (diff < -6) diff += 12;
+  
+  if (diff === 0) return targetLetter;
+  if (diff === 1) return `${targetLetter}#`;
+  if (diff === 2) return `${targetLetter}##`; // Double sharp (x)
+  if (diff === -1) return `${targetLetter}b`;
+  if (diff === -2) return `${targetLetter}bb`;
+  
+  // Fallback if something is weird (e.g. C to F# is tritone, not usually spelled as C#####)
+  // Just return the raw note from NOTES array if spelling fails?
+  return NOTES[targetIndex];
 };
 
 export const transpose = (note: string, semitones: number): string => {
@@ -71,17 +129,94 @@ export const getNextRootCircleOfFifths = (currentRootIndex: number, direction: 1
   return (currentRootIndex + step) % 12;
 };
 
-// Modified to preserve visual position of notes (no chromatic sorting re-order)
 export const getScaleNotes = (root: string, mode: ScaleMode = 'Ionian', octaves: number = 1): string[] => {
   const { name: rootName, octave: rootOctave } = parseNote(root);
   const rootIndex = getNoteIndex(rootName);
   const intervals = MODES[mode];
   
+  // Determine Root Letter Sequence
+  // Diatonic modes (7 notes) must use consecutive letters.
+  // e.g. C# -> D -> E -> F -> G -> A -> B
+  // Letters array:
+  const LETTERS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+  
+  // Find index of root letter
+  const rootLetter = rootName.charAt(0); // "C" from "C#"
+  const rootLetterIndex = LETTERS.indexOf(rootLetter);
+  
   const notes: string[] = [];
+  
   for (let i = 0; i < octaves; i++) {
-    const currentOctaveStart = rootIndex + (rootOctave + i) * 12;
-    intervals.forEach(interval => {
-       notes.push(getNoteFromIndex(currentOctaveStart + interval, 0));
+    const currentOctave = rootOctave + i;
+    
+    // Correct logic:
+    // We iterate through intervals.
+    // For each interval, we determine:
+    // 1. The absolute pitch index (0-11 relative to octave).
+    // 2. The target letter (for diatonic modes).
+    // 3. The actual octave (might bump up if we cross B->C).
+    
+    // Actually, let's just generate the pitch values first.
+    // Then apply spelling.
+    
+    intervals.forEach((interval, degree) => {
+       const absPitch = (rootIndex + interval) % 12;
+       
+       // Determine target letter
+       // For Diatonic/Heptatonic modes:
+       // Degree 0 -> Root Letter
+       // Degree 1 -> Next Letter
+       // ...
+       let targetLetter = '';
+       
+       if (mode === 'Chromatic') {
+         // Chromatic: just use standard sharp names
+         notes.push(getNoteFromIndex(absPitch, currentOctave)); 
+         // Note: Octave logic in getNoteFromIndex handles wrapping?
+         // getNoteFromIndex adds octave shift based on index / 12. 
+         // Here index is just 0-11.
+         // We need to track if we crossed C.
+         // Let's assume standard naming for chromatic.
+       } else {
+         // Diatonic
+         const targetLetterIndex = (rootLetterIndex + degree) % 7;
+         targetLetter = LETTERS[targetLetterIndex];
+         
+         // Spell it!
+         const spelledNoteName = spellNote(absPitch, targetLetter);
+         
+         // Calculate Octave
+         // If the pitch index is lower than the root pitch index (and it's not the root itself being 0 and root being 11?),
+         // it usually means we crossed into next octave? 
+         // Or strictly: when letter resets C?
+         // Standard convention: Octave increments at C.
+         
+         // We need to determine the octave of this specific note.
+         // Base octave is currentOctave.
+         // If the note is "lower" than root in pitch class but higher in degree?
+         // Example: Root B3 (11). Next C#4 (1).
+         // Letter B -> C. Octave increments.
+         
+         // Simple heuristic: compare Letter index.
+         // If targetLetterIndex < rootLetterIndex, we definitely crossed C (e.g. B(6) -> C(0)).
+         // So add 1 to octave.
+         // BUT wait, if we wrap multiple times (multi-octave request)?
+         // `currentOctave` variable tracks the base for this iteration `i`.
+         
+         let noteOctave = currentOctave;
+         if (targetLetterIndex < rootLetterIndex) {
+            noteOctave += 1;
+         }
+         
+         // Special case: If Root is C, targetLetterIndex < rootLetterIndex never happens for first octave?
+         // C(0) -> D(1) ... B(6).
+         // All good.
+         // If Root is B(6).
+         // Degree 0: B.
+         // Degree 1: C (0). 0 < 6. Octave++.
+         
+         notes.push(`${spelledNoteName}${noteOctave}`);
+       }
     });
   }
   return notes;
@@ -212,7 +347,7 @@ export const detectChordName = (notes: string[]): string => {
 
     if (signatures[currentIntervals] !== undefined) {
        // Found a match!
-       const rootName = NOTES[rootIndex];
+       const rootName = PREFERRED_ROOT_NAMES[rootIndex];
        const quality = signatures[currentIntervals];
        
        // Check for inversion
