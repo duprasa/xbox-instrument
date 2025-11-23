@@ -2,8 +2,13 @@
 import React from 'react';
 import { clsx } from 'clsx';
 
+export interface RadialMenuItem {
+  main: string;
+  sub?: string;
+}
+
 interface RadialMenuProps {
-  items: string[];
+  items: (string | RadialMenuItem)[];
   selectedIndex: number | null;
   previewIndex?: number | null;
   isActive: boolean; // e.g. trigger pulled
@@ -39,6 +44,10 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, selectedIndex, pr
     <div className={clsx("relative w-64 h-64", className)}>
       <svg viewBox={`0 0 ${viewBoxSize} ${viewBoxSize}`} className="w-full h-full transform -rotate-90 overflow-visible">
         {items.map((item, index) => {
+          // Handle string vs object items
+          const mainLabel = typeof item === 'string' ? item : item.main;
+          const subLabel = typeof item === 'string' ? undefined : item.sub;
+
           // Start and end angles for this slice
           // We offset by -0.5 slice so index 0 is centered at 0 degrees (which is East in SVG, but we rotated parent by -90 so it's North).
           const startAngle = (index - 0.5) / count;
@@ -91,24 +100,39 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, selectedIndex, pr
               {/* We need to position text at the centroid of the slice */}
               {(() => {
                  const textAngle = index / count; // Centered
-                 const textRadius = radius * 0.7;
+                 const textRadius = radius * 0.65;
                  const tx = center + textRadius * Math.cos(2 * Math.PI * textAngle);
                  const ty = center + textRadius * Math.sin(2 * Math.PI * textAngle);
                  
                  return (
-                   <text
-                     x={tx}
-                     y={ty}
-                     fill="white"
-                     fontSize="14"
-                     fontWeight="bold"
-                     textAnchor="middle"
-                     dominantBaseline="middle"
-                     transform={`rotate(90 ${tx} ${ty})`} // Counter-rotate text because parent is rotated -90
-                     className="pointer-events-none select-none"
-                   >
-                     {item}
-                   </text>
+                   <g transform={`rotate(90 ${tx} ${ty})`}>
+                     <text
+                       x={tx}
+                       y={subLabel ? ty - 6 : ty}
+                       fill="white"
+                       fontSize="18"
+                       fontWeight="bold"
+                       textAnchor="middle"
+                       dominantBaseline="middle"
+                       className="pointer-events-none select-none"
+                     >
+                       {mainLabel}
+                     </text>
+                     {subLabel && (
+                       <text
+                         x={tx}
+                         y={ty + 10}
+                         fill="rgba(255,255,255,0.6)"
+                         fontSize="10"
+                         fontWeight="normal"
+                         textAnchor="middle"
+                         dominantBaseline="middle"
+                         className="pointer-events-none select-none font-mono"
+                       >
+                         {subLabel}
+                       </text>
+                     )}
+                   </g>
                  );
               })()}
             </g>

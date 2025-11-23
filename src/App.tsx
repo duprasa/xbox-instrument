@@ -11,7 +11,8 @@ import {
   detectChordName,
   getNextRootCircleOfFifths,
   PREFERRED_ROOT_NAMES,
-  NOTES
+  NOTES,
+  getDiatonicChordType
 } from './utils/music-theory';
 import type { ScaleMode, ChordType } from './utils/music-theory';
 import { audioEngine } from './audio/AudioEngine';
@@ -109,29 +110,189 @@ function App() {
 
   const fixedSlots = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
 
-  const scaleLabels = useMemo(() => {
+  // Helper to map scale notes to fixed slots AND generate labels
+  const getScaleLabels = (notes: string[], isChordWheel: boolean): ({ main: string; sub?: string } | string)[] => {
     if (currentMode === 'Chromatic') {
-      // Use fixed NOTES array for Chromatic mode labels
-      return NOTES;
+      // Chromatic: 12 fixed notes
+      // For Chords: Just Note Name? Or Roman I, bII?
+      // Let's keep it simple for Chromatic for now: Note Name
+      return NOTES.map(n => ({ main: n, sub: isChordWheel ? 'Maj' : '' }));
     }
 
-    // For Diatonic Modes (7 notes):
-    // Map each note in `scaleNotes` to its corresponding fixed slot.
-    const mapping = new Array(7).fill('');
-
-    scaleNotes.forEach(note => {
+    const labels = new Array(7).fill({ main: '', sub: '' });
+    
+    notes.forEach((note, index) => {
       const noteName = note.replace(/\d+/, '');
-      const letter = noteName.charAt(0); // 'C', 'D', etc.
+      const letter = noteName.charAt(0);
       const slotIndex = fixedSlots.indexOf(letter);
+      
       if (slotIndex !== -1) {
-        mapping[slotIndex] = noteName;
+        if (isChordWheel) {
+          // Chord Wheel: Roman Numeral (Main) + Note Name (Sub)
+          // Determine quality
+          let quality: ChordType = 'maj';
+          if (activeChordType) {
+            quality = activeChordType;
+          } else {
+            quality = getDiatonicChordType(notes, index);
+          }
+          
+          // Determine interval for Roman Numeral (need to check against root)
+          // Parse root and current note to find interval
+          // Or just use index if we trust scaleNotes order?
+          // scaleNotes is ordered by degree 0-6.
+          // So 'index' passed here is the degree index.
+          
+          // Need interval from root.
+          // notes[0] is root.
+          // We need pitch difference.
+          // Let's assume getScaleNotes returns correct degree order.
+          // But wait, getDiatonicChordType uses absolute pitch diff.
+          // getRomanNumeral needs "intervalFromRoot" in semitones.
+          // Let's calculate it.
+          
+          // We need to parse notes to get semitones.
+          // Since we don't have parseNote exported, let's rely on index roughly?
+          // No, accidentals matter (bIII vs III).
+          // Let's fetch the interval from the scale generation logic?
+          // Or just re-calculate:
+          
+          // Simple lookup since we are in App.tsx and don't have easy access to helpers without importing more.
+          // But we can assume for Diatonic modes, the interval sequence is fixed by mode?
+          // Yes, but we need to know it.
+          // Actually, `getRomanNumeral` needs `intervalFromRoot`.
+          
+          // Let's try to approximate or use logic from music-theory.ts if possible.
+          // Or... pass simply the note name?
+          
+          // Better approach: Calculate labels in useMemo using scaleNotes.
+          
+          // Re-implement basic interval calc or export helper?
+          // Let's stick to the label generation here.
+          
+          // We need the semitone interval.
+          // notes[index] vs notes[0].
+          // Since we don't have `parseNote` here, we can't easily calc semitones.
+          // Maybe just export `getNoteIndex`?
+          
+          // Let's assume standard mode intervals for now or just use the Roman Numeral directly if I import `getNoteIndex`?
+          // I will import `getRomanNumeral` which expects `intervalFromRoot`.
+          // I need `getNoteIndex` to calculate that.
+          
+          // Actually, `scaleNotes` are strings like "C4", "D4".
+          // We can use `Tone.Frequency(note).toMidi()` if available? No, Tone is in AudioEngine.
+          // Let's export `getNoteIndex` from music-theory.ts?
+          // Or just add it to imports.
+          
+          // Wait, I can't easily change imports in the same `search_replace` block if I didn't plan it.
+          // I did import `getRomanNumeral` and `getDiatonicChordType`.
+          // I should also import `getNoteIndex` or `parseNote`.
+          // But `parseNote` is not exported.
+          
+          // Alternative: Update `getRomanNumeral` to accept note strings and calculate itself?
+          // No, it takes `intervalFromRoot`.
+          
+          // Let's assume I can't calc interval easily here.
+          // But wait, `getDiatonicChordType` calculates quality based on scale notes!
+          // Maybe `getRomanNumeral` can just take `scaleNotes` and `degreeIndex` and do the work?
+          // That would be cleaner.
+          // But I already implemented it taking `intervalFromRoot`.
+          
+          // Let's temporarily add a helper here or rely on the `MODES` object if I exported it?
+          // `MODES` is not exported in the `search_replace`.
+          
+          // Okay, I will export `parseNote` or `getNoteIndex` in a separate step?
+          // No, I can just use `activeChordType` overrides.
+          // If I don't have exact interval, I might guess.
+          // But accuracy is key.
+          
+          // Let's use a simplified Roman Numeral logic here or fix the imports.
+          // I will use a placeholder for now and fix it, or...
+          // Actually, I can just use the `activeChordType` to force the string.
+          
+          // If I can't calc precise interval (b3 vs 3), I might miss bIII vs III.
+          // In Minor mode, index 2 is b3.
+          // Roman numeral should be bIII (Major) or biii (Minor).
+          // The prefix depends on the interval.
+          
+          // Let's assume standard Roman numerals for the *Mode*.
+          // I.e. in Dorian: i, ii, bIII, IV, v, vi°, bVII.
+          // This is constant for the mode!
+          // I don't need to calc intervals from notes. I just need the Mode's interval structure.
+          // But `activeChordType` overrides the *quality* (case), not the root interval (bIII).
+          
+          // So I can define a map of Roman Bases for each Mode?
+          // Ionian: I, II, III, IV, V, VI, VII
+          // Aeolian: I, II, bIII, IV, V, bVI, bVII
+          // etc.
+          
+          // This is hardcoding but safe.
+          // "chromatic" mode is handled separately.
+          
+          // Let's define `MODE_ROMANS`.
+          
+          const romanBases: Record<ScaleMode, string[]> = {
+             Ionian: ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'],
+             Dorian: ['I', 'II', 'bIII', 'IV', 'V', 'VI', 'bVII'],
+             Phrygian: ['I', 'bII', 'bIII', 'IV', 'V', 'bVI', 'bVII'],
+             Lydian: ['I', 'II', 'III', '#IV', 'V', 'VI', 'VII'],
+             Mixolydian: ['I', 'II', 'III', 'IV', 'V', 'VI', 'bVII'],
+             Aeolian: ['I', 'II', 'bIII', 'IV', 'V', 'bVI', 'bVII'],
+             Locrian: ['I', 'bII', 'bIII', 'IV', 'bV', 'bVI', 'bVII'],
+             Chromatic: [] // Handled above
+          };
+          
+          let baseRoman = romanBases[currentMode][index];
+          
+          // Apply Quality Case
+          if (quality === 'min' || quality === 'dim' || quality === 'min7') {
+             baseRoman = baseRoman.toLowerCase();
+          }
+          
+          // Suffix
+          let suffix = '';
+          if (quality === 'dim') suffix = '°';
+          if (quality === 'aug') suffix = '+';
+          if (quality === 'sus2') suffix = 'sus2';
+          if (quality === 'sus4') suffix = 'sus';
+          
+          labels[slotIndex] = { main: baseRoman + suffix, sub: noteName };
+          
+        } else {
+          // Melody Wheel: Scale Degree (Main) + Note Name (Sub)
+          // Degrees: 1, 2, 3, 4, 5, 6, 7
+          // But maybe add b3, #4 etc?
+          // Again, depends on Mode intervals.
+          // Let's use standard numbers 1-7 for now, maybe with b/# if mode implies it?
+          // "iii for minor 3rd" implies user knows intervals.
+          // Let's use the same prefixes as chords?
+          // e.g. b3, #4.
+          
+          const degrees: Record<ScaleMode, string[]> = {
+             Ionian: ['1', '2', '3', '4', '5', '6', '7'],
+             Dorian: ['1', '2', 'b3', '4', '5', '6', 'b7'],
+             Phrygian: ['1', 'b2', 'b3', '4', '5', 'b6', 'b7'],
+             Lydian: ['1', '2', '3', '#4', '5', '6', '7'],
+             Mixolydian: ['1', '2', '3', '4', '5', '6', 'b7'],
+             Aeolian: ['1', '2', 'b3', '4', '5', 'b6', 'b7'],
+             Locrian: ['1', 'b2', 'b3', '4', 'b5', 'b6', 'b7'],
+             Chromatic: []
+          };
+          
+          const degreeLabel = degrees[currentMode][index];
+          labels[slotIndex] = { main: degreeLabel, sub: noteName };
+        }
       }
     });
+    
+    return labels;
+  };
 
-    return mapping;
-  }, [scaleNotes, currentMode, currentRootWithOctave]);
+  const chordLabels = useMemo(() => getScaleLabels(scaleNotes, true), [scaleNotes, currentMode, activeChordType]);
+  const melodyLabels = useMemo(() => getScaleLabels(scaleNotes, false), [scaleNotes, currentMode]);
 
-  const sliceCount = scaleLabels.length;
+  const sliceCount = chordLabels.length; // Lengths should match
+
 
   const handleStart = async () => {
     await audioEngine.initialize();
@@ -259,7 +420,9 @@ function App() {
     // 3. Handle Note Playback (Right Trigger)
     const noteTrigger = gamepad.triggers.right;
     if (noteTrigger > 0.05 && noteIdx !== null) {
-      const selectedLabel = scaleLabels[noteIdx];
+      const selectedItem = melodyLabels[noteIdx];
+      // Handle object label
+      const selectedLabel = typeof selectedItem === 'string' ? selectedItem : selectedItem?.sub;
 
       if (selectedLabel) {
         // Ideally we'd find the exact octave from scaleNotes, but labels are just names.
@@ -286,19 +449,21 @@ function App() {
     // 4. Handle Chord Playback (Left Trigger)
     const chordTrigger = gamepad.triggers.left;
     if (chordTrigger > 0.05 && chordIdx !== null) {
-      const selectedLabel = scaleLabels[chordIdx];
+      const selectedItem = chordLabels[chordIdx];
+      // Handle object label (use sub which is the note name)
+      const selectedLabel = typeof selectedItem === 'string' ? selectedItem : selectedItem?.sub;
 
       if (selectedLabel) {
         let chordNotes: string[] = [];
-
+        
         // Find full root note
         const rootForChord = scaleNotes.find(n => n.startsWith(selectedLabel)) || selectedLabel + '4';
-
+        
         // Find Scale Degree Index for Diatonic Logic
         // We need to know where this note sits in the current *Scale* (not the UI wheel).
         // e.g. in D Major, D is index 0. F# is index 2.
         const degreeIndex = scaleNotes.findIndex(n => n.startsWith(selectedLabel));
-
+        
         if (degreeIndex !== -1 || currentMode === 'Chromatic') {
           if (activeChordType) {
             // User override
@@ -336,7 +501,7 @@ function App() {
       }
     }
 
-  }, [gamepad, scaleLabels, scaleNotes, chordInversionOffset, activeChordType, sliceCount, currentRootWithOctave, currentMode]);
+  }, [gamepad, melodyLabels, chordLabels, scaleNotes, chordInversionOffset, activeChordType, sliceCount, currentRootWithOctave, currentMode]);
 
   return (
     <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-start p-8 font-sans pt-32">
@@ -351,12 +516,18 @@ function App() {
 
         <div className="text-right space-y-1">
           {!gamepad.connected && (
-            <div className="bg-red-500/20 text-red-200 px-3 py-1 rounded-full text-xs animate-pulse">
-              Connect Controller
+            <>
+            <div className="bg-orange-500/20 text-orange-200 py-2 px-4 rounded-full text-xs animate-pulse">
+              Searching for Gamepad...
             </div>
+            <div className="text-slate-400 text-xs text-center">
+              Press A to connect
+
+            </div>
+            </>
           )}
           {gamepad.connected && (
-            <div className="bg-green-500/20 text-green-200 px-3 py-1 rounded-full text-xs">
+            <div className="bg-green-500/20 text-green-200 py-2 px-4 rounded-full text-xs">
               Controller Active
             </div>
           )}
@@ -414,7 +585,7 @@ function App() {
               style={{ opacity: gamepad.triggers.left }}
             />
             <RadialMenu
-              items={scaleLabels}
+              items={chordLabels}
               selectedIndex={selectedChordIndex}
               previewIndex={previewChordIndex}
               isActive={gamepad.triggers.left > 0.05}
@@ -467,7 +638,7 @@ function App() {
               style={{ opacity: gamepad.triggers.right }}
             />
             <RadialMenu
-              items={scaleLabels}
+              items={melodyLabels}
               selectedIndex={selectedNoteIndex}
               previewIndex={previewNoteIndex}
               isActive={gamepad.triggers.right > 0.05}

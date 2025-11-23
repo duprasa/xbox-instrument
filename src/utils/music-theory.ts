@@ -280,18 +280,50 @@ export const getChordNotes = (root: string, type: ChordType = 'maj', inversion: 
   return applyGenericInversion(notes, inversion);
 };
 
-// Logic to get diatonic chord for a scale degree
+// Helper to get Roman Numeral for a scale degree and chord type
+export const getRomanNumeral = (degree: number, type: ChordType): string => {
+  const numerals = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
+  if (degree < 0 || degree >= numerals.length) return '';
+  
+  const base = numerals[degree];
+  
+  switch (type) {
+    case 'maj':
+    case 'maj7':
+      return base;
+    case 'min':
+    case 'min7':
+      return base.toLowerCase();
+    case 'dim':
+      return base.toLowerCase() + '°';
+    case 'aug':
+      return base + '+';
+    case 'sus2':
+      return base + 'sus2';
+    case 'sus4':
+      return base + 'sus4';
+    case '7': // Dominant 7 (e.g. V7)
+      return base + '7';
+    default:
+      return base;
+  }
+};
+
+  // Logic to get diatonic chord for a scale degree
 export const getDiatonicChordType = (scaleNotes: string[], degreeIndex: number): ChordType => {
-  // We need to determine if interval is Major (4 semitones) or Minor (3 semitones)
-  // Scale notes should be enough.
-  const root = parseNote(scaleNotes[degreeIndex]);
-  const third = parseNote(scaleNotes[degreeIndex + 2]);
-  const fifth = parseNote(scaleNotes[degreeIndex + 4]);
+  // Handle wrapping index safely
+  const root = parseNote(scaleNotes[degreeIndex % scaleNotes.length]);
+  const third = parseNote(scaleNotes[(degreeIndex + 2) % scaleNotes.length]);
+  const fifth = parseNote(scaleNotes[(degreeIndex + 4) % scaleNotes.length]);
   
   if (!root || !third || !fifth) return 'maj';
 
-  const thirdInterval = third.absValue - root.absValue;
-  const fifthInterval = fifth.absValue - root.absValue;
+  // Calculate interval distance handling wrapping (modulo 12)
+  let thirdInterval = (third.absValue - root.absValue) % 12;
+  if (thirdInterval < 0) thirdInterval += 12;
+  
+  let fifthInterval = (fifth.absValue - root.absValue) % 12;
+  if (fifthInterval < 0) fifthInterval += 12;
 
   if (fifthInterval === 7) {
     if (thirdInterval === 4) return 'maj';
@@ -361,6 +393,9 @@ export const detectChordName = (notes: string[]): string => {
 
   return '?'; 
 };
+
+// Helper to get Roman Numeral for a scale degree and chord type - DEPRECATED duplicate logic, removed.
+// Use the one below.
 
 export const getDiatonicChord = (scaleNotes: string[], degreeIndex: number, inversionStrategy: boolean = true): string[] => {
   // scaleNotes should be long enough (e.g. 2 octaves) to find thirds and fifths
