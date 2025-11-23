@@ -60,6 +60,18 @@ export const transpose = (note: string, semitones: number): string => {
   return getNoteFromIndex(absoluteIndex, 0); // octave is handled by absoluteIndex logic
 };
 
+// Circle of Fifths Logic
+// C -> G -> D -> A -> E -> B -> F# -> C# -> G# -> D# -> A# -> F
+// Steps: +7 semitones (or -5)
+export const getNextRootCircleOfFifths = (currentRootIndex: number, direction: 1 | -1): number => {
+  // Direction 1: Clockwise (Sharps) -> +7 semitones
+  // Direction -1: Counter-Clockwise (Flats) -> -7 semitones (or +5)
+  
+  const step = direction === 1 ? 7 : 5; // +7 or +5 (equivalent to -7 mod 12)
+  return (currentRootIndex + step) % 12;
+};
+
+// Modified to preserve visual position of notes (no chromatic sorting re-order)
 export const getScaleNotes = (root: string, mode: ScaleMode = 'Ionian', octaves: number = 1): string[] => {
   const { name: rootName, octave: rootOctave } = parseNote(root);
   const rootIndex = getNoteIndex(rootName);

@@ -4,6 +4,7 @@ import { clsx } from 'clsx';
 
 interface RadialMenuProps {
   items: string[];
+  activeItems?: Set<string>; // New prop for scale filtering
   selectedIndex: number | null;
   previewIndex?: number | null;
   isActive: boolean; // e.g. trigger pulled
@@ -12,7 +13,7 @@ interface RadialMenuProps {
   className?: string;
 }
 
-export const RadialMenu: React.FC<RadialMenuProps> = ({ items, selectedIndex, previewIndex, isActive, color = 'blue', label, className }) => {
+export const RadialMenu: React.FC<RadialMenuProps> = ({ items, activeItems, selectedIndex, previewIndex, isActive, color = 'blue', label, className }) => {
   const radius = 100;
   const center = 110; // Center shifted to accommodate stroke width
   const viewBoxSize = 220; // Increased from 200 to prevent clipping
@@ -49,6 +50,10 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, selectedIndex, pr
           
           const largeArcFlag = anglePerSlice > 180 ? 1 : 0;
           
+          // Check if item is in active scale
+          const itemLabel = items[index];
+          const isInScale = !activeItems || activeItems.has(itemLabel);
+
           const isSelected = index === selectedIndex;
           const isPreview = index === previewIndex && !isSelected;
           
@@ -65,7 +70,18 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, selectedIndex, pr
               return color === 'blue' ? '#60a5fa' : '#c084fc'; // Selected (Dim)
             }
             if (isPreview) return '#334155';
-            return '#1e293b';
+            // Dim inactive notes significantly
+            return isInScale ? '#1e293b' : '#0f172a';
+          };
+          
+          const getStrokeColor = () => {
+             return isInScale ? '#0f172a' : '#0f172a'; // Could change border too
+          };
+          
+          const getOpacity = () => {
+             if (isSelected) return "opacity-100";
+             if (isPreview) return "opacity-80";
+             return isInScale ? "opacity-50" : "opacity-20"; // Fade out inactive
           };
 
           return (
@@ -73,9 +89,9 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, selectedIndex, pr
               <path
                 d={pathData}
                 fill={getFillColor()}
-                stroke="#0f172a"
+                stroke={getStrokeColor()}
                 strokeWidth="2"
-                className={clsx("transition-colors duration-75", isSelected && "opacity-100", isPreview && "opacity-80", !isSelected && !isPreview && "opacity-50")}
+                className={clsx("transition-colors duration-75", getOpacity())}
               />
               {/* Text Label */}
               {/* We need to position text at the centroid of the slice */}
@@ -95,7 +111,7 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, selectedIndex, pr
                      textAnchor="middle"
                      dominantBaseline="middle"
                      transform={`rotate(90 ${tx} ${ty})`} // Counter-rotate text because parent is rotated -90
-                     className="pointer-events-none select-none"
+                     className={clsx("pointer-events-none select-none", !isInScale && "opacity-30 fill-slate-500")}
                    >
                      {item}
                    </text>
