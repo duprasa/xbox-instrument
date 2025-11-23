@@ -88,7 +88,7 @@ class AudioEngine {
         "C8": "C8.mp3"
       },
       release: 1,
-      baseUrl: "https://tonejs.github.io/audio/salamander/",
+      baseUrl: "/samples/piano/",
       volume: volume
     });
   }

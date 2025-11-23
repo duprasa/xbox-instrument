@@ -10,7 +10,8 @@ import {
   applyGenericInversion,
   detectChordName,
   getNextRootCircleOfFifths,
-  PREFERRED_ROOT_NAMES
+  PREFERRED_ROOT_NAMES,
+  NOTES
 } from './utils/music-theory';
 import type { ScaleMode, ChordType } from './utils/music-theory';
 import { audioEngine } from './audio/AudioEngine';
@@ -77,7 +78,7 @@ function App() {
   // Generate Scale Notes
   const scaleNotes = useMemo(() => {
     if (currentMode === 'Chromatic') {
-      return getScaleNotes(currentRootWithOctave, 'Chromatic', 1);
+      return NOTES.map(n => `${n}4`);
     }
     return getScaleNotes(currentRootWithOctave, currentMode, 1);
   }, [currentRootWithOctave, currentMode]);
@@ -110,12 +111,8 @@ function App() {
 
   const scaleLabels = useMemo(() => {
     if (currentMode === 'Chromatic') {
-      // For chromatic, we likely need 12 slices.
-      // But user asked for "continue to just display the 7...". 
-      // If mode is Chromatic, maybe we revert to 12 slices? 
-      // Or maybe we just show C C# D D# ... which is not 7.
-      // Let's assume Chromatic mode needs 12 slices.
-      return getScaleNotes(currentRootWithOctave, 'Chromatic', 1).map(n => n.replace(/\d+/, ''));
+      // Use fixed NOTES array for Chromatic mode labels
+      return NOTES;
     }
 
     // For Diatonic Modes (7 notes):
