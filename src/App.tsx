@@ -3,17 +3,19 @@ import { useEffect, useState, useRef, useMemo } from 'react';
 import { useGamepad } from './hooks/useGamepad';
 import type { GamepadState } from './hooks/useGamepad';
 import { RadialMenu } from './components/RadialMenu';
+import { Instructions } from './components/Instructions';
 import { 
   NOTES, 
   MODES, 
   getScaleNotes, 
   getChordNotes, 
   getDiatonicChord,
-  transpose
+  applyGenericInversion,
+  detectChordName
 } from './utils/music-theory';
 import type { ScaleMode, ChordType } from './utils/music-theory';
 import { audioEngine } from './audio/AudioEngine';
-import { Music, Settings } from 'lucide-react';
+import { Music, Settings, ArrowLeftRight } from 'lucide-react';
 
 const SCALE_MODES = Object.keys(MODES) as ScaleMode[];
 
@@ -24,12 +26,19 @@ function App() {
   // App State
   const [rootNoteIndex, setRootNoteIndex] = useState(0); // C
   const [scaleModeIndex, setScaleModeIndex] = useState(0); // Ionian
-  const [globalTranspose, setGlobalTranspose] = useState(0); // Semitones
+  
+  // Replaced globalTranspose with chordInversionOffset
+  const [chordInversionOffset, setChordInversionOffset] = useState(0);
+  
   const [volume] = useState(-10); // dB
   
   // Current Selection State (Visual)
   const [selectedNoteIndex, setSelectedNoteIndex] = useState<number | null>(null);
   const [selectedChordIndex, setSelectedChordIndex] = useState<number | null>(null);
+  
+  // Preview State (Subtle indication before selection)
+  const [previewNoteIndex, setPreviewNoteIndex] = useState<number | null>(null);
+  const [previewChordIndex, setPreviewChordIndex] = useState<number | null>(null);
   
   // Playing State (Audio)
   const [playingNote, setPlayingNote] = useState<string | null>(null);
@@ -56,10 +65,10 @@ function App() {
   // Display Labels
   const scaleLabels = useMemo(() => {
      return scaleNotes.map(n => {
-       const t = transpose(n, globalTranspose);
-       return t.replace(/\d+/, ''); // Remove octave for label
+       // Labels are unaffected by inversion
+       return n.replace(/\d+/, ''); // Remove octave for label
      });
-  }, [scaleNotes, globalTranspose]);
+  }, [scaleNotes]);
   
   const sliceCount = scaleLabels.length;
 
@@ -83,12 +92,13 @@ function App() {
       setRootNoteIndex(i => (i - 1 + 12) % 12);
     }
 
-    // D-Pad Left/Right: Transpose
+    // D-Pad Left/Right: Inversion Offset
+    // Replaced Transpose with Inversion Offset
     if (curr.buttons.dpadLeft && !prev.buttons.dpadLeft) {
-      setGlobalTranspose(t => t - 1);
+      setChordInversionOffset(i => i - 1);
     }
     if (curr.buttons.dpadRight && !prev.buttons.dpadRight) {
-      setGlobalTranspose(t => t + 1);
+      setChordInversionOffset(i => i + 1);
     }
 
     // Bumpers: Mode
@@ -102,9 +112,9 @@ function App() {
     // Face Buttons: Chord Modifiers
     let modifier: ChordType | null = null;
     if (curr.buttons.a) modifier = 'min';
-    else if (curr.buttons.b) modifier = 'maj';
+    else if (curr.buttons.y) modifier = 'maj';
     else if (curr.buttons.x) modifier = 'dim';
-    else if (curr.buttons.y) modifier = 'sus4';
+    else if (curr.buttons.b) modifier = 'sus4';
     setActiveChordType(modifier);
 
     prevGamepadRef.current = curr;
@@ -122,31 +132,65 @@ function App() {
     
     // 1. Determine Selected Index (Right Stick -> Note)
     let noteIdx = selectedNoteIndex;
-    if (gamepad.axes.right.magnitude > 0.2) {
+    let notePreviewIdx = null;
+    
+    const rMag = gamepad.axes.right.magnitude;
+    if (rMag > 0.2) {
       const angle = gamepad.axes.right.angle; // 0 is North
       const sectorAngle = 360 / sliceCount;
-      noteIdx = Math.round(angle / sectorAngle) % sliceCount;
-      setSelectedNoteIndex(noteIdx);
+      const targetIdx = Math.round(angle / sectorAngle) % sliceCount;
+      
+      if (rMag > 0.6) {
+        noteIdx = targetIdx;
+        setSelectedNoteIndex(noteIdx);
+      } else {
+        notePreviewIdx = targetIdx;
+      }
+    } else {
+      if (gamepad.triggers.right < 0.05) {
+         noteIdx = null;
+         setSelectedNoteIndex(null);
+      }
     }
+    setPreviewNoteIndex(notePreviewIdx);
 
     // 2. Determine Selected Index (Left Stick -> Chord)
     let chordIdx = selectedChordIndex;
-    if (gamepad.axes.left.magnitude > 0.2) {
+    let chordPreviewIdx = null;
+    
+    const lMag = gamepad.axes.left.magnitude;
+    if (lMag > 0.2) {
       const angle = gamepad.axes.left.angle;
       const sectorAngle = 360 / sliceCount;
-      chordIdx = Math.round(angle / sectorAngle) % sliceCount;
-      setSelectedChordIndex(chordIdx);
+      const targetIdx = Math.round(angle / sectorAngle) % sliceCount;
+      
+      if (lMag > 0.6) {
+        chordIdx = targetIdx;
+        setSelectedChordIndex(chordIdx);
+      } else {
+        chordPreviewIdx = targetIdx;
+      }
+    } else {
+      if (gamepad.triggers.left < 0.05) {
+         chordIdx = null;
+         setSelectedChordIndex(null);
+      }
     }
+    setPreviewChordIndex(chordPreviewIdx);
 
     // 3. Handle Note Playback (Right Trigger)
     const noteTrigger = gamepad.triggers.right;
-    if (noteTrigger > 0.1 && noteIdx !== null) {
+    if (noteTrigger > 0.05 && noteIdx !== null) {
        const baseNote = scaleNotes[noteIdx];
-       const targetNote = transpose(baseNote, globalTranspose);
+       // Note wheel is unaffected by inversions or global transpose (which was removed)
+       const targetNote = baseNote;
        
+       // Remap trigger value (0.05-1.0) to velocity (0.3-1.0) for better response
+       const velocity = 0.5 + (noteTrigger * 0.7);
+
        if (targetNote !== playingNote) {
          if (playingNote) audioEngine.stopNote(playingNote);
-         audioEngine.playNote(targetNote, noteTrigger); // Velocity mapped to trigger
+         audioEngine.playNote(targetNote, velocity); 
          setPlayingNote(targetNote);
        }
     } else {
@@ -158,20 +202,26 @@ function App() {
 
     // 4. Handle Chord Playback (Left Trigger)
     const chordTrigger = gamepad.triggers.left;
-    if (chordTrigger > 0.1 && chordIdx !== null) {
+    if (chordTrigger > 0.05 && chordIdx !== null) {
        let chordNotes: string[] = [];
        const rootForChord = scaleNotes[chordIdx];
-       const transposedRoot = transpose(rootForChord, globalTranspose);
+       // No global transpose on root, just scale degree
 
        if (activeChordType) {
-         chordNotes = getChordNotes(transposedRoot, activeChordType, 0);
+         // User override: calculate generic chord then apply inversion offset
+         const baseChord = getChordNotes(rootForChord, activeChordType, 0);
+         chordNotes = applyGenericInversion(baseChord, chordInversionOffset);
        } else {
          if (currentMode === 'Chromatic') {
-            chordNotes = getChordNotes(transposedRoot, 'maj', 0);
+            const baseChord = getChordNotes(rootForChord, 'maj', 0);
+            chordNotes = applyGenericInversion(baseChord, chordInversionOffset);
          } else {
-            const extendedScale = getScaleNotes(currentRootWithOctave, currentMode, 2)
-              .map(n => transpose(n, globalTranspose));
-            chordNotes = getDiatonicChord(extendedScale, chordIdx, true); 
+            // Diatonic
+            const extendedScale = getScaleNotes(currentRootWithOctave, currentMode, 2);
+            // Get base diatonic chord (with auto-inversion for compact voicing)
+            const baseChord = getDiatonicChord(extendedScale, chordIdx, true);
+            // Apply user-controlled inversion offset on top of that
+            chordNotes = applyGenericInversion(baseChord, chordInversionOffset);
          }
        }
        
@@ -180,7 +230,9 @@ function App() {
        
        if (chordFingerprint !== playingFingerprint) {
           if (playingChord) audioEngine.stopChord(playingChord);
-          audioEngine.playChord(chordNotes, chordTrigger * 0.8);
+          // Remap trigger to velocity
+          const velocity = 0.5 + (chordTrigger * 0.7);
+          audioEngine.playChord(chordNotes, velocity);
           setPlayingChord(chordNotes);
        }
     } else {
@@ -190,32 +242,17 @@ function App() {
        }
     }
 
-  }, [gamepad, scaleNotes, globalTranspose, activeChordType, sliceCount, currentRootWithOctave, currentMode]); 
+  }, [gamepad, scaleNotes, chordInversionOffset, activeChordType, sliceCount, currentRootWithOctave, currentMode]); 
 
   return (
-    <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-8 font-sans">
+    <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-start p-8 font-sans pt-32">
       
       {/* Header / Status */}
-      <div className="absolute top-8 w-full max-w-4xl flex justify-between items-start px-8">
+      <div className="absolute top-8 w-full max-w-6xl flex justify-between items-start px-8">
         <div className="space-y-2">
           <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
-            Xbox Instrument
+            Gamepad Instrument
           </h1>
-          <div className="flex items-center gap-4 text-sm text-slate-400">
-             <div className="flex items-center gap-1">
-               <Music size={16} />
-               <span>Root: <strong className="text-white">{currentRoot}</strong></span>
-             </div>
-             <div className="flex items-center gap-1">
-               <Settings size={16} />
-               <span>Mode: <strong className="text-white">{currentMode}</strong></span>
-             </div>
-             <div className="flex items-center gap-1">
-               <span>Transpose: <strong className={globalTranspose !== 0 ? "text-yellow-400" : "text-white"}>
-                 {globalTranspose > 0 ? '+' : ''}{globalTranspose}
-               </strong></span>
-             </div>
-          </div>
         </div>
         
         <div className="text-right space-y-1">
@@ -229,46 +266,75 @@ function App() {
                Controller Active
              </div>
            )}
-           <div className="text-xs text-slate-500 mt-2">
-             Start to Init Audio
-           </div>
         </div>
       </div>
 
       {/* Main Interface */}
+      <Instructions />
+
+      <div className="flex items-center gap-4 text-sm text-slate-400 mb-8 justify-center w-full">
+             <div className="flex items-center gap-1">
+               <Music size={16} />
+               <span>Root: <strong className="text-white">{currentRoot}</strong></span>
+             </div>
+             <div className="flex items-center gap-1">
+               <Settings size={16} />
+               <span>Mode: <strong className="text-white">{currentMode}</strong></span>
+             </div>
+             <div className="flex items-center gap-1">
+               <ArrowLeftRight size={16} />
+               <span>Inversion: <strong className={chordInversionOffset !== 0 ? "text-yellow-400" : "text-white"}>
+                 {chordInversionOffset > 0 ? '+' : ''}{chordInversionOffset}
+               </strong></span>
+             </div>
+          </div>
+
       <div className="flex flex-col md:flex-row gap-16 items-center justify-center w-full max-w-6xl">
         
         {/* Left Stick: Chords */}
         <div className="relative group">
-          <div className="absolute -inset-4 bg-purple-500/20 rounded-full blur-xl opacity-0 group-hover:opacity-100 transition-opacity" />
+          <div 
+            className="absolute -inset-4 bg-purple-500/40 rounded-full blur-2xl transition-opacity duration-75 will-change-[opacity]" 
+            style={{ opacity: gamepad.triggers.left }}
+          />
           <RadialMenu 
             items={scaleLabels} 
             selectedIndex={selectedChordIndex}
-            isActive={gamepad.triggers.left > 0.1}
+            previewIndex={previewChordIndex}
+            isActive={gamepad.triggers.left > 0.05}
+            color="purple"
             label="CHORDS"
             className="w-80 h-80"
           />
           
           {/* Chord Info */}
-          <div className="absolute -bottom-12 left-0 right-0 text-center h-8">
+          <div className="absolute -bottom-16 left-0 right-0 text-center h-16 flex flex-col items-center justify-end">
             {playingChord && (
-               <span className="text-purple-300 font-mono text-sm animate-pulse">
-                 {playingChord.map(n => n.replace(/\d+/, '')).join(' ')}
-               </span>
+               <>
+                 <span className="text-purple-300 font-bold text-xl animate-pulse block">
+                   {detectChordName(playingChord)}
+                 </span>
+                 <span className="text-purple-400/70 font-mono text-xs">
+                   {playingChord.map(n => n.replace(/\d+/, '')).join(' ')}
+                 </span>
+               </>
             )}
           </div>
-          
-          <div className="absolute top-0 left-0 text-xs text-slate-500">LB/RB: Mode</div>
-          <div className="absolute bottom-0 left-0 text-xs text-slate-500">LT: Play</div>
+
         </div>
 
         {/* Right Stick: Notes */}
         <div className="relative group">
-          <div className="absolute -inset-4 bg-blue-500/20 rounded-full blur-xl opacity-0 group-hover:opacity-100 transition-opacity" />
+          <div 
+            className="absolute -inset-4 bg-blue-500/40 rounded-full blur-2xl transition-opacity duration-75 will-change-[opacity]" 
+            style={{ opacity: gamepad.triggers.right }}
+          />
           <RadialMenu 
             items={scaleLabels} 
             selectedIndex={selectedNoteIndex}
-            isActive={gamepad.triggers.right > 0.1}
+            previewIndex={previewNoteIndex}
+            isActive={gamepad.triggers.right > 0.05}
+            color="blue"
             label="NOTES"
             className="w-80 h-80"
           />
@@ -281,25 +347,22 @@ function App() {
                </span>
             )}
           </div>
-          
-          <div className="absolute top-0 right-0 text-xs text-slate-500 text-right">D-Pad: Root/Trans</div>
-          <div className="absolute bottom-0 right-0 text-xs text-slate-500 text-right">RT: Play</div>
         </div>
         
       </div>
       
       {/* Chord Modifiers Overlay */}
       <div className="fixed bottom-8 flex gap-4">
+      <div className={`px-4 py-2 rounded-lg border ${gamepad.buttons.x ? 'bg-blue-500/50 border-blue-400' : 'border-slate-700 bg-slate-800'}`}>
+           X (Dim)
+         </div>
          <div className={`px-4 py-2 rounded-lg border ${gamepad.buttons.a ? 'bg-green-500/50 border-green-400' : 'border-slate-700 bg-slate-800'}`}>
            A (Min)
          </div>
-         <div className={`px-4 py-2 rounded-lg border ${gamepad.buttons.b ? 'bg-red-500/50 border-red-400' : 'border-slate-700 bg-slate-800'}`}>
+         <div className={`px-4 py-2 rounded-lg border ${gamepad.buttons.y ? 'bg-yellow-500/50 border-yellow-400' : 'border-slate-700 bg-slate-800'}`}>
            B (Maj)
          </div>
-         <div className={`px-4 py-2 rounded-lg border ${gamepad.buttons.x ? 'bg-blue-500/50 border-blue-400' : 'border-slate-700 bg-slate-800'}`}>
-           X (Dim)
-         </div>
-         <div className={`px-4 py-2 rounded-lg border ${gamepad.buttons.y ? 'bg-yellow-500/50 border-yellow-400' : 'border-slate-700 bg-slate-800'}`}>
+         <div className={`px-4 py-2 rounded-lg border ${gamepad.buttons.b ? 'bg-red-500/50 border-red-400' : 'border-slate-700 bg-slate-800'}`}>
            Y (Sus)
          </div>
       </div>

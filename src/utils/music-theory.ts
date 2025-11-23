@@ -28,11 +28,17 @@ export const CHORD_INTERVALS: Record<ChordType, number[]> = {
   min7: [0, 3, 7, 10],
 };
 
-// Helper to parse note into { name, octave }
+// Helper to parse note into { name, octave, absValue }
 const parseNote = (note: string) => {
   const match = note.match(/^([A-G]#?)(-?\d+)?$/);
-  if (!match) return { name: 'C', octave: 4 };
-  return { name: match[1], octave: match[2] ? parseInt(match[2]) : 4 };
+  if (!match) return { name: 'C', octave: 4, absValue: 48 }; // Default C4
+  
+  const name = match[1];
+  const octave = match[2] ? parseInt(match[2]) : 4;
+  const noteIndex = getNoteIndex(name);
+  const absValue = octave * 12 + noteIndex;
+  
+  return { name, octave, absValue };
 };
 
 // Helper to get note from index
@@ -69,6 +75,47 @@ export const getScaleNotes = (root: string, mode: ScaleMode = 'Ionian', octaves:
   return notes;
 };
 
+export const applyGenericInversion = (notes: string[], steps: number): string[] => {
+  if (steps === 0) return notes;
+
+  // Parse all notes to get absolute values
+  let parsedNotes = notes.map(n => parseNote(n));
+  
+  // Sort by pitch (absolute value)
+  parsedNotes.sort((a, b) => a.absValue - b.absValue);
+
+  if (steps > 0) {
+    for (let i = 0; i < steps; i++) {
+      // Take the lowest note
+      const lowest = parsedNotes.shift();
+      if (lowest) {
+        // Move up 1 octave (+12 semitones)
+        const newAbs = lowest.absValue + 12;
+        const newName = getNoteFromIndex(newAbs, 0);
+        parsedNotes.push(parseNote(newName));
+        // Re-sort
+        parsedNotes.sort((a, b) => a.absValue - b.absValue);
+      }
+    }
+  } else {
+    const absSteps = Math.abs(steps);
+    for (let i = 0; i < absSteps; i++) {
+      // Take the highest note
+      const highest = parsedNotes.pop();
+      if (highest) {
+        // Move down 1 octave (-12 semitones)
+        const newAbs = highest.absValue - 12;
+        const newName = getNoteFromIndex(newAbs, 0);
+        parsedNotes.unshift(parseNote(newName));
+        // Re-sort
+        parsedNotes.sort((a, b) => a.absValue - b.absValue);
+      }
+    }
+  }
+
+  return parsedNotes.map(n => getNoteFromIndex(n.absValue, 0));
+};
+
 export const getChordNotes = (root: string, type: ChordType = 'maj', inversion: number = 0): string[] => {
   const { name, octave } = parseNote(root);
   const rootIndex = getNoteIndex(name);
@@ -78,39 +125,94 @@ export const getChordNotes = (root: string, type: ChordType = 'maj', inversion: 
     return getNoteFromIndex(rootIndex + interval + octave * 12, 0);
   });
 
-  // Apply inversion
-  // 1st inversion: move first note up an octave
-  // 2nd inversion: move first two notes up an octave
-  for (let i = 0; i < inversion; i++) {
-    const noteToMove = notes.shift();
-    if (noteToMove) {
-      notes.push(transpose(noteToMove, 12));
-    }
-  }
-
-  return notes;
+  // Apply generic inversion
+  // Original `inversion` param was 0, 1, 2... always up.
+  // Now we can use our generic helper if needed, or keep this simple loop for compatibility.
+  // But `applyGenericInversion` is more robust.
+  // Let's assume `inversion` here is strictly positive (standard theory).
+  return applyGenericInversion(notes, inversion);
 };
 
 // Logic to get diatonic chord for a scale degree
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export const getDiatonicChordType = (_degree: number, _mode: ScaleMode): ChordType => {
-  // Simplified logic for now, assumes standard diatonic triads for major/minor
-  // This is complex for arbitrary modes, but we can map basic triads.
-  // Major Scale (Ionian): I-maj, ii-min, iii-min, IV-maj, V-maj, vi-min, vii-dim
+export const getDiatonicChordType = (scaleNotes: string[], degreeIndex: number): ChordType => {
+  // We need to determine if interval is Major (4 semitones) or Minor (3 semitones)
+  // Scale notes should be enough.
+  const root = parseNote(scaleNotes[degreeIndex]);
+  const third = parseNote(scaleNotes[degreeIndex + 2]);
+  const fifth = parseNote(scaleNotes[degreeIndex + 4]);
   
-  // Intervals relative to scale root:
-  // Ionian:  M m m M M m dim
-  // Aeolian: m dim M m m M M
+  if (!root || !third || !fifth) return 'maj';
+
+  const thirdInterval = third.absValue - root.absValue;
+  const fifthInterval = fifth.absValue - root.absValue;
+
+  if (fifthInterval === 7) {
+    if (thirdInterval === 4) return 'maj';
+    if (thirdInterval === 3) return 'min';
+  }
+  if (fifthInterval === 6 && thirdInterval === 3) return 'dim';
+  if (fifthInterval === 8 && thirdInterval === 4) return 'aug';
   
-  // We can determine the chord quality by checking the third and fifth intervals within the scale notes.
-  // But for simplicity, we'll implement a lookup for common modes or calculate it.
+  return 'maj'; // Default fallback
+};
+
+// Detect chord name from notes
+export const detectChordName = (notes: string[]): string => {
+  if (!notes || notes.length === 0) return '';
+
+  const parsed = notes.map(n => parseNote(n)).sort((a, b) => a.absValue - b.absValue);
   
-  // Calculating is better:
-  // 1. Get scale notes (2 octaves)
-  // 2. Take degree (0-based), degree+2, degree+4 (tertiary stacking)
-  // 3. Measure intervals to determine chord quality.
-  
-  return 'maj'; // Placeholder, will be calculated in `getDiatonicChord`
+  // Get the lowest note (bass note for inversion detection)
+  const bassNote = parsed[0].name;
+
+  // We need to find the "Root" of the chord, which might not be the bass note.
+  // Algorithm:
+  // 1. Create pitch class set (0-11) relative to C.
+  // 2. Try every note in the set as a potential root.
+  // 3. Calculate intervals from that potential root.
+  // 4. Match against known chord shapes.
+
+  const pitchClasses = parsed.map(n => getNoteIndex(n.name));
+  const uniquePitchClasses = [...new Set(pitchClasses)].sort((a, b) => a - b);
+
+  // Known chord signatures (intervals from root)
+  const signatures: Record<string, string> = {
+    '0,4,7': '',     // Maj
+    '0,3,7': 'm',    // Min
+    '0,3,6': 'dim',  // Dim
+    '0,4,8': 'aug',  // Aug
+    '0,2,7': 'sus2', // Sus2
+    '0,5,7': 'sus4', // Sus4
+    '0,4,7,11': 'maj7',
+    '0,4,7,10': '7',
+    '0,3,7,10': 'm7',
+    '0,3,6,9': 'dim7',
+    '0,3,6,10': 'm7b5', // Half-dim
+  };
+
+  for (const rootIndex of uniquePitchClasses) {
+    // Calculate intervals relative to this potential root
+    // (p - root + 12) % 12
+    const currentIntervals = uniquePitchClasses
+      .map(p => (p - rootIndex + 12) % 12)
+      .sort((a, b) => a - b)
+      .join(',');
+
+    if (signatures[currentIntervals] !== undefined) {
+       // Found a match!
+       const rootName = NOTES[rootIndex];
+       const quality = signatures[currentIntervals];
+       
+       // Check for inversion
+       if (rootName !== bassNote) {
+         return `${rootName}${quality}/${bassNote}`;
+       } else {
+         return `${rootName}${quality}`;
+       }
+    }
+  }
+
+  return '?'; 
 };
 
 export const getDiatonicChord = (scaleNotes: string[], degreeIndex: number, inversionStrategy: boolean = true): string[] => {
@@ -134,40 +236,6 @@ export const getDiatonicChord = (scaleNotes: string[], degreeIndex: number, inve
   // If we strictly follow the rule: degrees 0, 1, 2 -> root position. degrees 3+ -> invert?
   
   if (inversionStrategy && degreeIndex >= 3) {
-    // Invert to keep lower? 
-    // Simple 2nd inversion usually brings the high notes down.
-    // Or just move the top notes down an octave?
-    // "Inverted to fit within the octave" -> typically means keeping the bass close to the root of the key?
-    // Let's try 1st inversion for 3, 4, and 2nd for 5, 6?
-    // The prompt says: "starting from the 4th they get inverted"
-    // Let's apply 1st inversion to degree 3 and up (4th chord is index 3).
-    // Actually, let's just drop the octave of the top notes if they go too high?
-    
-    // Interpretation: Invert the chord so the lowest note is not the root, but a chord tone that keeps it lower.
-    // E.g. F Major (F A C) -> C F A (2nd inversion) or A C F (1st inversion)
-    
-    // Let's try a simple rule: if degree >= 3, apply 2nd inversion (move top 2 notes down octave? No, standard inversion moves bottom up).
-    // To "fit within the octave" usually means "keep the pitch range compact".
-    // Let's try: drop the top notes by an octave to make them the bass?
-    // That is effectively an inversion.
-    
-    // Let's just apply `transpose(note, -12)` to the top notes to bring them down?
-    // F A C -> C4 F4 A4 (if F is F4).
-    // If we have F4 A4 C5, and we want it "in the octave", maybe we want C4 F4 A4.
-    
-    // Let's implement a simple inversion for now:
-    // degree 3 (IV): 2nd inversion (Fifth in bass)
-    // degree 4 (V): 2nd inversion
-    // degree 5 (vi): 1st inversion?
-    // Let's stick to the user prompt: "starting from the 4th they get inverted"
-    
-    // We will return [fifth-12, root, third] (2nd inversion downwards) or similar.
-    
-    // For now, let's just take the generated notes [R, 3, 5] and if degree >= 3:
-    // Shift the whole chord down? No, that's not inversion.
-    // Inversion is changing the bass note.
-    
-    // Let's try this:
     // If degree >= 3:
     //   Take the 5th, drop it 1 octave.
     //   Take the 3rd, drop it 1 octave?
@@ -200,4 +268,3 @@ export const getDiatonicChord = (scaleNotes: string[], degreeIndex: number, inve
   
   return notes;
 };
-

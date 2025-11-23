@@ -1,0 +1,104 @@
+
+import { useState } from 'react';
+import { 
+  Gamepad2, 
+  ArrowUpCircle, 
+  ArrowLeftRight, 
+  PlayCircle,
+  RefreshCw,
+  ChevronDown,
+  ChevronUp
+} from 'lucide-react';
+import { clsx } from 'clsx';
+
+export const Instructions = () => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <div className="w-full max-w-6xl bg-slate-800/30 rounded-xl border border-slate-800 shadow-lg backdrop-blur-sm mb-8 transition-all duration-300 overflow-hidden">
+      <button 
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center justify-between p-4 hover:bg-slate-800/30 transition-colors text-left"
+      >
+        <h2 className="text-lg font-semibold text-slate-400 flex items-center gap-2">
+          <Gamepad2 className="w-5 h-5" />
+          Controls Guide
+        </h2>
+        {isOpen ? <ChevronUp className="w-4 h-4 text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
+      </button>
+      
+      <div className={clsx(
+        "transition-all duration-300 ease-in-out",
+        isOpen ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0"
+      )}>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-sm text-slate-400 p-4 pt-0 border-t border-slate-800/50 mt-2">
+          {/* Section 1: Basics */}
+          <div className="space-y-2">
+            <h3 className="font-semibold text-slate-300 text-base flex items-center gap-2">
+              <PlayCircle className="w-4 h-4 text-slate-500" />
+              Playing Notes & Chords
+            </h3>
+            <ul className="space-y-2 list-disc list-inside">
+              <li>
+                <strong className="text-blue-300">Right Stick</strong>: Tilt to select a <strong>Note</strong>.
+              </li>
+              <li>
+                <strong className="text-blue-300">Right Trigger</strong>: Play the selected Note. Pull harder for louder volume.
+              </li>
+              <li>
+                <strong className="text-purple-300">Left Stick</strong>: Tilt to select a <strong>Chord</strong>.
+              </li>
+              <li>
+                <strong className="text-purple-300">Left Trigger</strong>: Play the selected Chord.
+              </li>
+            </ul>
+          </div>
+
+          {/* Section 2: Shaping Sound */}
+          <div className="space-y-2">
+            <h3 className="font-semibold text-slate-300 text-base flex items-center gap-2">
+              <RefreshCw className="w-4 h-4 text-slate-500" />
+              Changing the Sound
+            </h3>
+            <ul className="space-y-2">
+              <li className="flex items-start gap-2">
+                <span className="bg-slate-700 px-1.5 rounded text-xs font-bold mt-0.5 whitespace-nowrap">A / B / X / Y</span>
+                <span>
+                  Hold while playing a chord to change type (Minor, Major, Dim, Sus).
+                </span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="bg-slate-700 px-1.5 rounded text-xs font-bold mt-0.5 whitespace-nowrap">LB / RB</span>
+                <span>
+                  Cycle through <strong>Modes</strong> (Scales). Try 'Aeolian' for sadder sounds or 'Mixolydian' for bluesy vibes.
+                </span>
+              </li>
+            </ul>
+          </div>
+
+          {/* Section 3: Advanced Controls */}
+          <div className="space-y-2">
+            <h3 className="font-semibold text-slate-300 text-base flex items-center gap-2">
+              <ArrowLeftRight className="w-4 h-4 text-slate-500" />
+              Tuning & Inversions
+            </h3>
+            <ul className="space-y-2">
+              <li className="flex items-start gap-2">
+                <ArrowUpCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                <span>
+                  <strong>D-Pad Up/Down</strong>: Change the <strong>Root Note</strong> (Key).
+                </span>
+              </li>
+              <li className="flex items-start gap-2">
+                <ArrowLeftRight className="w-4 h-4 mt-0.5 shrink-0" />
+                <span>
+                  <strong>D-Pad Left/Right</strong>: Change <strong>Chord Inversions</strong>. Shift chords up or down the octave.
+                </span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};

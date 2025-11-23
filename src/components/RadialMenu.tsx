@@ -5,14 +5,17 @@ import { clsx } from 'clsx';
 interface RadialMenuProps {
   items: string[];
   selectedIndex: number | null;
+  previewIndex?: number | null;
   isActive: boolean; // e.g. trigger pulled
+  color?: 'blue' | 'purple';
   label?: string;
   className?: string;
 }
 
-export const RadialMenu: React.FC<RadialMenuProps> = ({ items, selectedIndex, isActive, label, className }) => {
+export const RadialMenu: React.FC<RadialMenuProps> = ({ items, selectedIndex, previewIndex, isActive, color = 'blue', label, className }) => {
   const radius = 100;
-  const center = 100;
+  const center = 110; // Center shifted to accommodate stroke width
+  const viewBoxSize = 220; // Increased from 200 to prevent clipping
   const count = items.length;
   const anglePerSlice = 360 / count;
   
@@ -34,7 +37,7 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, selectedIndex, is
 
   return (
     <div className={clsx("relative w-64 h-64", className)}>
-      <svg viewBox="0 0 200 200" className="w-full h-full transform -rotate-90">
+      <svg viewBox={`0 0 ${viewBoxSize} ${viewBoxSize}`} className="w-full h-full transform -rotate-90 overflow-visible">
         {items.map((item, index) => {
           // Start and end angles for this slice
           // We offset by -0.5 slice so index 0 is centered at 0 degrees (which is East in SVG, but we rotated parent by -90 so it's North).
@@ -47,6 +50,7 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, selectedIndex, is
           const largeArcFlag = anglePerSlice > 180 ? 1 : 0;
           
           const isSelected = index === selectedIndex;
+          const isPreview = index === previewIndex && !isSelected;
           
           const pathData = [
             `M ${center} ${center}`,
@@ -55,14 +59,23 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, selectedIndex, is
             'Z'
           ].join(' ');
 
+          const getFillColor = () => {
+            if (isSelected) {
+              if (isActive) return color === 'blue' ? '#3b82f6' : '#a855f7'; // Active (Bright)
+              return color === 'blue' ? '#60a5fa' : '#c084fc'; // Selected (Dim)
+            }
+            if (isPreview) return '#334155';
+            return '#1e293b';
+          };
+
           return (
             <g key={index}>
               <path
                 d={pathData}
-                fill={isSelected ? (isActive ? '#3b82f6' : '#60a5fa') : '#1e293b'}
+                fill={getFillColor()}
                 stroke="#0f172a"
                 strokeWidth="2"
-                className={clsx("transition-colors duration-75", isSelected && "opacity-100", !isSelected && "opacity-50")}
+                className={clsx("transition-colors duration-75", isSelected && "opacity-100", isPreview && "opacity-80", !isSelected && !isPreview && "opacity-50")}
               />
               {/* Text Label */}
               {/* We need to position text at the centroid of the slice */}
