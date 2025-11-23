@@ -48,7 +48,7 @@ const DEFAULT_STATE: GamepadState = {
   },
 };
 
-const DEADZONE = 0.1;
+const DEADZONE = 0.02;
 
 const getAngle = (x: number, y: number) => {
   // atan2 returns -PI to PI. -PI is West, -PI/2 is North, 0 is East, PI/2 is South.
