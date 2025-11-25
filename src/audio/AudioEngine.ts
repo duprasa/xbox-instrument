@@ -7,52 +7,85 @@ class AudioEngine {
   private melodyInstrument: Tone.PolySynth | Tone.Sampler;
   private chordInstrument: Tone.PolySynth | Tone.Sampler;
   private reverb: Tone.Reverb;
+  private chorus: Tone.Chorus;
   private isInitialized: boolean = false;
 
   constructor() {
     this.reverb = new Tone.Reverb({
-      decay: 2,
-      wet: 0.3,
+      decay: 4,
+      wet: 0.4,
     }).toDestination();
+
+    this.chorus = new Tone.Chorus({
+      frequency: 4,
+      delayTime: 2.5,
+      depth: 0.5,
+      wet: 0.3
+    }).start();
+
+    // Chain effects: Chorus -> Reverb -> Out
+    this.chorus.connect(this.reverb);
 
     // Initialize default instruments
     this.melodyInstrument = this.createSynth('melody');
     this.chordInstrument = this.createSynth('chord');
     
-    this.melodyInstrument.connect(this.reverb);
-    this.chordInstrument.connect(this.reverb);
+    this.melodyInstrument.connect(this.chorus);
+    this.chordInstrument.connect(this.chorus);
   }
 
   private createSynth(role: 'melody' | 'chord'): Tone.PolySynth {
     if (role === 'melody') {
-      return new Tone.PolySynth(Tone.Synth, {
+      // "Nice" Lead: Filtered Sawtooth using MonoSynth options in PolySynth
+      // We use FMSynth or MonoSynth for richer tone. Let's try MonoSynth for the filter.
+      return new Tone.PolySynth(Tone.MonoSynth, {
         oscillator: {
-          type: 'triangle',
+          type: "sawtooth"
         },
         envelope: {
           attack: 0.05,
-          decay: 0.1,
-          sustain: 0.3,
-          release: 1,
+          decay: 0.3,
+          sustain: 0.4,
+          release: 2,
         },
+        filter: {
+          Q: 1,
+          type: "lowpass",
+          rolloff: -24
+        },
+        filterEnvelope: {
+          attack: 0.05,
+          decay: 0.5,
+          sustain: 0.2,
+          release: 2,
+          baseFrequency: 200,
+          octaves: 4,
+          exponent: 2
+        },
+        volume: -6
       });
     } else {
+      // "Nice" Pad: Warm Triangle/Sine
       return new Tone.PolySynth(Tone.Synth, {
         oscillator: {
-          type: 'sine', // Softer for chords
+          type: 'fatsine', // Lush, detuned sine waves
+          count: 3,
+          spread: 30
         },
         envelope: {
-          attack: 0.2,
-          decay: 0.3,
-          sustain: 0.5,
-          release: 1.5,
+          attack: 0.5, // Slow attack for pad
+          decay: 1,
+          sustain: 0.8,
+          release: 3,
         },
-        volume: -5, // Slightly quieter
+        volume: -8,
       });
     }
   }
 
   private createPiano(role: 'melody' | 'chord'): Tone.Sampler {
+    // The piano samples are decent but can be "thin".
+    // Adding a little release and attack smoothing helps.
     const volume = role === 'chord' ? -5 : 0;
     return new Tone.Sampler({
       urls: {
@@ -105,8 +138,13 @@ class AudioEngine {
       newInstrument = this.createSynth(role);
     }
 
-    // Connect to reverb
-    newInstrument.connect(this.reverb);
+    // Connect to reverb (via effect chain)
+    if (type === 'piano') {
+        // Don't apply chorus to piano, keep it pure
+        newInstrument.connect(this.reverb);
+    } else {
+        newInstrument.connect(this.chorus);
+    }
 
     // Swap
     if (role === 'melody') {
