@@ -59,19 +59,25 @@ export const Instructions = () => {
             </h3>
             <ul className="space-y-2">
               <li className="flex items-start gap-2">
-                <span className="bg-slate-700 px-1.5 rounded text-xs font-bold mt-0.5 whitespace-nowrap">A / B / X / Y</span>
+                <span className="bg-slate-700 px-1.5 rounded text-xs font-bold mt-0.5 whitespace-nowrap">LB / RB</span>
                 <span>
-                  Hold while playing a chord to change type (Minor, Major, Dim, Sus).
+                   Change Chord Quality (<strong>Minor</strong> / <strong>Major</strong>).
+                </span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="bg-slate-700 px-1.5 rounded text-xs font-bold mt-0.5 whitespace-nowrap">LT / RT</span>
+                <span>
+                   Change Chord Quality (<strong>Diminished</strong> / <strong>Suspended</strong>).
                 </span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="bg-slate-700 px-1.5 rounded text-xs font-bold mt-0.5 whitespace-nowrap">Start / Back</span>
                 <span>
-                  Cycle through <strong>Modes</strong> (Scales). Try 'Aeolian' for sadder sounds or 'Mixolydian' for bluesy vibes.
+                  Cycle through <strong>Modes</strong> (Scales).
                 </span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="bg-slate-700 px-1.5 rounded text-xs font-bold mt-0.5 whitespace-nowrap">LB / RB</span>
+                <span className="bg-slate-700 px-1.5 rounded text-xs font-bold mt-0.5 whitespace-nowrap">X / Y</span>
                 <span>
                    Change the <strong>Root Note</strong> (Key) via Circle of Fifths.
                 </span>
@@ -95,7 +101,7 @@ export const Instructions = () => {
               <li className="flex items-start gap-2">
                 <ArrowLeftRight className="w-4 h-4 mt-0.5 shrink-0" />
                 <span>
-                  <strong>D-Pad Left/Right</strong>: Change <strong>Chord Inversions</strong>. Shift chords up or down the octave.
+                  <strong>D-Pad Left/Right</strong>: Change <strong>Chord Inversions</strong>.
                 </span>
               </li>
             </ul>

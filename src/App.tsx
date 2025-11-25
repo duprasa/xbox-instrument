@@ -235,11 +235,14 @@ function App() {
       setChordInversionOffset(i => i + 1);
     }
 
-    // Bumpers: Root Note (Circle of Fifths)
-    if (curr.buttons.rb && !prev.buttons.rb) {
+    // Bumpers: Chord Modifiers (Major/Minor)
+    // Left/Right Bumpers now control Major/Minor
+    
+    // Face Buttons: Root Note (Circle of Fifths)
+    if (curr.buttons.y && !prev.buttons.y) {
       setRootNoteIndex(i => getNextRootCircleOfFifths(i, 1));
     }
-    if (curr.buttons.lb && !prev.buttons.lb) {
+    if (curr.buttons.x && !prev.buttons.x) {
       setRootNoteIndex(i => getNextRootCircleOfFifths(i, -1));
     }
 
@@ -253,12 +256,20 @@ function App() {
       setScaleModeIndex(i => (i - 1 + SCALE_MODES.length) % SCALE_MODES.length);
     }
 
-    // Face Buttons: Chord Modifiers
+    // Modifiers:
+    // LB -> Min
+    // RB -> Maj
+    // LT -> Dim
+    // RT -> Sus
+    // We check triggers for threshold (e.g. > 0.1) or stick magnitude?
+    // User said: dim/sus to left/right triggers.
+    
     let modifier: ChordType | null = null;
-    if (curr.buttons.a) modifier = 'min';
-    else if (curr.buttons.y) modifier = 'maj';
-    else if (curr.buttons.x) modifier = 'dim';
-    else if (curr.buttons.b) modifier = 'sus4';
+    if (curr.buttons.lb) modifier = 'min';
+    else if (curr.buttons.rb) modifier = 'maj';
+    else if (curr.triggers.left > 0.1) modifier = 'dim';
+    else if (curr.triggers.right > 0.1) modifier = 'sus4';
+    
     setActiveChordType(modifier);
 
     // Stick Clicks: Toggle Instruments
@@ -331,10 +342,8 @@ function App() {
         chordPreviewIdx = targetIdx;
       }
     } else {
-      if (gamepad.triggers.left < 0.05) {
-        chordIdx = null;
-        setSelectedChordIndex(null);
-      }
+      chordIdx = null;
+      setSelectedChordIndex(null);
     }
     setPreviewChordIndex(chordPreviewIdx);
 
@@ -376,7 +385,6 @@ function App() {
         }
 
         // Map magnitude (0.6-1.0) to velocity (0.5-1.0)
-        // Triggers are no longer required, but if right trigger is pulled, maybe boost?
         // Let's stick to magnitude for now.
         const velocity = 0.5 + ((rMag - 0.6) / 0.4) * 0.5;
 
@@ -634,17 +642,17 @@ function App() {
 
       {/* Chord Modifiers Overlay */}
       <div className="fixed bottom-8 flex gap-4">
-        <div className={`px-4 py-2 rounded-lg border ${gamepad.buttons.x ? 'bg-blue-500/50 border-blue-400' : 'border-slate-700 bg-slate-800'}`}>
-          X (Dim)
+        <div className={`px-4 py-2 rounded-lg border ${gamepad.triggers.left > 0.1 ? 'bg-blue-500/50 border-blue-400' : 'border-slate-700 bg-slate-800'}`}>
+          LT (Dim)
         </div>
-        <div className={`px-4 py-2 rounded-lg border ${gamepad.buttons.a ? 'bg-green-500/50 border-green-400' : 'border-slate-700 bg-slate-800'}`}>
-          A (Min)
+        <div className={`px-4 py-2 rounded-lg border ${gamepad.buttons.lb ? 'bg-green-500/50 border-green-400' : 'border-slate-700 bg-slate-800'}`}>
+          LB (Min)
         </div>
-        <div className={`px-4 py-2 rounded-lg border ${gamepad.buttons.y ? 'bg-yellow-500/50 border-yellow-400' : 'border-slate-700 bg-slate-800'}`}>
-          Y (Maj)
+        <div className={`px-4 py-2 rounded-lg border ${gamepad.buttons.rb ? 'bg-yellow-500/50 border-yellow-400' : 'border-slate-700 bg-slate-800'}`}>
+          RB (Maj)
         </div>
-        <div className={`px-4 py-2 rounded-lg border ${gamepad.buttons.b ? 'bg-red-500/50 border-red-400' : 'border-slate-700 bg-slate-800'}`}>
-          B (Sus)
+        <div className={`px-4 py-2 rounded-lg border ${gamepad.triggers.right > 0.1 ? 'bg-red-500/50 border-red-400' : 'border-slate-700 bg-slate-800'}`}>
+          RT (Sus)
         </div>
       </div>
 
