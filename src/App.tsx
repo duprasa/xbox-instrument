@@ -10,6 +10,7 @@ import {
   applyGenericInversion,
   detectChordName,
   getNextRootCircleOfFifths,
+  transpose,
   PREFERRED_ROOT_NAMES,
   NOTES,
   getDiatonicChordType
@@ -46,6 +47,7 @@ function App() {
 
   // Replaced globalTranspose with chordInversionOffset
   const [chordInversionOffset, setChordInversionOffset] = useState(0);
+  const [melodyOctaveOffset, setMelodyOctaveOffset] = useState(0);
 
   const [volume] = useState(-10); // dB
   
@@ -85,39 +87,20 @@ function App() {
   }, [currentRootWithOctave, currentMode]);
 
   // Display Labels - Map Fixed Positions to Scale Notes
-  // Requirements:
-  // 1. Show only the 7 notes in the scale (or 12 if Chromatic).
-  // 2. Preserve positions relative to "Root at Top" or "C at Top"?
-  //    User said: "don't change the position of C,D,E,F,G,A,B just sharpen and flatten"
-  //    This implies a FIXED Layout where the top slice is ALWAYS some form of C (C, C#, Cb).
-  //    The next slice is D (D, D#, Db), etc.
-  //    So we need 7 slices fixed: C-ish, D-ish, E-ish, F-ish, G-ish, A-ish, B-ish.
-  //    But wait, a scale might have C# and D# and E?
-  //    Example D Major: D, E, F#, G, A, B, C#
-  //    If we map to fixed C-D-E-F-G-A-B slots:
-  //    Slot C: C#
-  //    Slot D: D
-  //    Slot E: E
-  //    Slot F: F#
-  //    Slot G: G
-  //    Slot A: A
-  //    Slot B: B
-  //    This covers all 7 notes.
-  //    What if we have a scale with 8 notes? (Bebop?) - We only support 7-note modes + Chromatic.
-  //    What if a scale has no C-ish note? (e.g. B# and C# but no C natural).
-  //    Standard Diatonic scales always have one of each letter name (heptatonic).
-  //    So we can map each scale note to its letter name slot!
-
+  // Fixed slots: C, D, E, F, G, A, B (7 slices)
   const fixedSlots = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
 
-  // Helper to map scale notes to fixed slots AND generate labels
   const getScaleLabels = (notes: string[], isChordWheel: boolean): ({ main: string; sub?: string } | string)[] => {
     if (currentMode === 'Chromatic') {
-      // Chromatic: 12 fixed notes
-      // For Chords: Just Note Name? Or Roman I, bII?
-      // Let's keep it simple for Chromatic for now: Note Name
       return NOTES.map(n => {
-        return { main: n, sub: '' };
+        let sub = '';
+        if (isChordWheel) {
+           sub = activeChordType || 'Maj';
+           if (sub !== 'Maj') {
+             sub = sub.charAt(0).toUpperCase() + sub.slice(1);
+           }
+        }
+        return { main: n, sub };
       });
     }
 
@@ -131,107 +114,12 @@ function App() {
       if (slotIndex !== -1) {
         if (isChordWheel) {
           // Chord Wheel: Roman Numeral (Main) + Note Name (Sub)
-          // Determine quality
           let quality: ChordType = 'maj';
           if (activeChordType) {
             quality = activeChordType;
           } else {
             quality = getDiatonicChordType(notes, index);
           }
-          
-          // Determine interval for Roman Numeral (need to check against root)
-          // Parse root and current note to find interval
-          // Or just use index if we trust scaleNotes order?
-          // scaleNotes is ordered by degree 0-6.
-          // So 'index' passed here is the degree index.
-          
-          // Need interval from root.
-          // notes[0] is root.
-          // We need pitch difference.
-          // Let's assume getScaleNotes returns correct degree order.
-          // But wait, getDiatonicChordType uses absolute pitch diff.
-          // getRomanNumeral needs "intervalFromRoot" in semitones.
-          // Let's calculate it.
-          
-          // We need to parse notes to get semitones.
-          // Since we don't have parseNote exported, let's rely on index roughly?
-          // No, accidentals matter (bIII vs III).
-          // Let's fetch the interval from the scale generation logic?
-          // Or just re-calculate:
-          
-          // Simple lookup since we are in App.tsx and don't have easy access to helpers without importing more.
-          // But we can assume for Diatonic modes, the interval sequence is fixed by mode?
-          // Yes, but we need to know it.
-          // Actually, `getRomanNumeral` needs `intervalFromRoot`.
-          
-          // Let's try to approximate or use logic from music-theory.ts if possible.
-          // Or... pass simply the note name?
-          
-          // Better approach: Calculate labels in useMemo using scaleNotes.
-          
-          // Re-implement basic interval calc or export helper?
-          // Let's stick to the label generation here.
-          
-          // We need the semitone interval.
-          // notes[index] vs notes[0].
-          // Since we don't have `parseNote` here, we can't easily calc semitones.
-          // Maybe just export `getNoteIndex`?
-          
-          // Let's assume standard mode intervals for now or just use the Roman Numeral directly if I import `getNoteIndex`?
-          // I will import `getRomanNumeral` which expects `intervalFromRoot`.
-          // I need `getNoteIndex` to calculate that.
-          
-          // Actually, `scaleNotes` are strings like "C4", "D4".
-          // We can use `Tone.Frequency(note).toMidi()` if available? No, Tone is in AudioEngine.
-          // Let's export `getNoteIndex` from music-theory.ts?
-          // Or just add it to imports.
-          
-          // Wait, I can't easily change imports in the same `search_replace` block if I didn't plan it.
-          // I did import `getRomanNumeral` and `getDiatonicChordType`.
-          // I should also import `getNoteIndex` or `parseNote`.
-          // But `parseNote` is not exported.
-          
-          // Alternative: Update `getRomanNumeral` to accept note strings and calculate itself?
-          // No, it takes `intervalFromRoot`.
-          
-          // Let's assume I can't calc interval easily here.
-          // But wait, `getDiatonicChordType` calculates quality based on scale notes!
-          // Maybe `getRomanNumeral` can just take `scaleNotes` and `degreeIndex` and do the work?
-          // That would be cleaner.
-          // But I already implemented it taking `intervalFromRoot`.
-          
-          // Let's temporarily add a helper here or rely on the `MODES` object if I exported it?
-          // `MODES` is not exported in the `search_replace`.
-          
-          // Okay, I will export `parseNote` or `getNoteIndex` in a separate step?
-          // No, I can just use `activeChordType` overrides.
-          // If I don't have exact interval, I might guess.
-          // But accuracy is key.
-          
-          // Let's use a simplified Roman Numeral logic here or fix the imports.
-          // I will use a placeholder for now and fix it, or...
-          // Actually, I can just use the `activeChordType` to force the string.
-          
-          // If I can't calc precise interval (b3 vs 3), I might miss bIII vs III.
-          // In Minor mode, index 2 is b3.
-          // Roman numeral should be bIII (Major) or biii (Minor).
-          // The prefix depends on the interval.
-          
-          // Let's assume standard Roman numerals for the *Mode*.
-          // I.e. in Dorian: i, ii, bIII, IV, v, vi°, bVII.
-          // This is constant for the mode!
-          // I don't need to calc intervals from notes. I just need the Mode's interval structure.
-          // But `activeChordType` overrides the *quality* (case), not the root interval (bIII).
-          
-          // So I can define a map of Roman Bases for each Mode?
-          // Ionian: I, II, III, IV, V, VI, VII
-          // Aeolian: I, II, bIII, IV, V, bVI, bVII
-          // etc.
-          
-          // This is hardcoding but safe.
-          // "chromatic" mode is handled separately.
-          
-          // Let's define `MODE_ROMANS`.
           
           const romanBases: Record<ScaleMode, string[]> = {
              Ionian: ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'],
@@ -241,35 +129,25 @@ function App() {
              Mixolydian: ['I', 'II', 'III', 'IV', 'V', 'VI', 'bVII'],
              Aeolian: ['I', 'II', 'bIII', 'IV', 'V', 'bVI', 'bVII'],
              Locrian: ['I', 'bII', 'bIII', 'IV', 'bV', 'bVI', 'bVII'],
-             Chromatic: [] // Handled above
+             Chromatic: []
           };
           
           let baseRoman = romanBases[currentMode][index];
           
-          // Apply Quality Case
           if (quality === 'min' || quality === 'dim' || quality === 'min7') {
              baseRoman = baseRoman.toLowerCase();
           }
           
-          // Suffix
           let suffix = '';
           if (quality === 'dim') suffix = '°';
           if (quality === 'aug') suffix = '+';
-          if (quality === 'sus2') suffix = 'sus2';
-          if (quality === 'sus4') suffix = 'sus';
+          if (quality === 'sus2') suffix = 'ˢᵘˢ²';
+          if (quality === 'sus4') suffix = 'ˢᵘˢ⁴';
           
           labels[slotIndex] = { main: baseRoman + suffix, sub: noteName };
           
         } else {
           // Melody Wheel: Scale Degree (Main) + Note Name (Sub)
-          // Degrees: 1, 2, 3, 4, 5, 6, 7
-          // But maybe add b3, #4 etc?
-          // Again, depends on Mode intervals.
-          // Let's use standard numbers 1-7 for now, maybe with b/# if mode implies it?
-          // "iii for minor 3rd" implies user knows intervals.
-          // Let's use the same prefixes as chords?
-          // e.g. b3, #4.
-          
           const degrees: Record<ScaleMode, string[]> = {
              Ionian: ['1', '2', '3', '4', '5', '6', '7'],
              Dorian: ['1', '2', 'b3', '4', '5', '6', 'b7'],
@@ -295,6 +173,38 @@ function App() {
 
   const sliceCount = chordLabels.length; // Lengths should match
 
+  // Calculate active chord indices for Melody Wheel
+  const activeNoteIndices = useMemo(() => {
+    if (!playingChord) return [];
+    const chordNoteNames = playingChord.map(n => n.replace(/\d+/, ''));
+    const indices: number[] = [];
+    
+    melodyLabels.forEach((item, index) => {
+      // For Diatonic: item is { main: Degree, sub: NoteName } -> use sub
+      // For Chromatic: item is { main: NoteName, sub: '' } -> use main
+      // Or item can be string? (Typing says ({ main: string; sub?: string } | string)[])
+      
+      let label = '';
+      if (typeof item === 'string') {
+        label = item;
+      } else {
+        // Logic in getScaleLabels: 
+        // Diatonic: sub is Note Name
+        // Chromatic: main is Note Name
+        if (currentMode === 'Chromatic') {
+           label = item.main;
+        } else {
+           label = item.sub || '';
+        }
+      }
+      
+      if (chordNoteNames.includes(label)) {
+        indices.push(index);
+      }
+    });
+    return indices;
+  }, [playingChord, melodyLabels, currentMode]);
+
 
   const handleStart = async () => {
     await audioEngine.initialize();
@@ -308,12 +218,12 @@ function App() {
 
     if (!curr.connected) return;
 
-    // D-Pad Up/Down: Root Note (Circle of Fifths)
+    // D-Pad Up/Down: Melody Octave Control
     if (curr.buttons.dpadUp && !prev.buttons.dpadUp) {
-      setRootNoteIndex(i => getNextRootCircleOfFifths(i, 1));
+      setMelodyOctaveOffset(i => i + 1);
     }
     if (curr.buttons.dpadDown && !prev.buttons.dpadDown) {
-      setRootNoteIndex(i => getNextRootCircleOfFifths(i, -1));
+      setMelodyOctaveOffset(i => i - 1);
     }
 
     // D-Pad Left/Right: Inversion Offset
@@ -325,11 +235,21 @@ function App() {
       setChordInversionOffset(i => i + 1);
     }
 
-    // Bumpers: Mode
+    // Bumpers: Root Note (Circle of Fifths)
     if (curr.buttons.rb && !prev.buttons.rb) {
-      setScaleModeIndex(i => (i + 1) % SCALE_MODES.length);
+      setRootNoteIndex(i => getNextRootCircleOfFifths(i, 1));
     }
     if (curr.buttons.lb && !prev.buttons.lb) {
+      setRootNoteIndex(i => getNextRootCircleOfFifths(i, -1));
+    }
+
+    // Start Button: Mode Cycle
+    if (curr.buttons.start && !prev.buttons.start) {
+      setScaleModeIndex(i => (i + 1) % SCALE_MODES.length);
+    }
+
+    // Back Button: Mode Cycle Reverse
+    if (curr.buttons.back && !prev.buttons.back) {
       setScaleModeIndex(i => (i - 1 + SCALE_MODES.length) % SCALE_MODES.length);
     }
 
@@ -388,10 +308,9 @@ function App() {
         notePreviewIdx = targetIdx;
       }
     } else {
-      if (gamepad.triggers.right < 0.05) {
-        noteIdx = null;
-        setSelectedNoteIndex(null);
-      }
+      // Clear selection if stick is released
+      noteIdx = null;
+      setSelectedNoteIndex(null);
     }
     setPreviewNoteIndex(notePreviewIdx);
 
@@ -419,9 +338,18 @@ function App() {
     }
     setPreviewChordIndex(chordPreviewIdx);
 
-    // 3. Handle Note Playback (Right Trigger)
-    const noteTrigger = gamepad.triggers.right;
-    if (noteTrigger > 0.05 && noteIdx !== null) {
+    // 3. Handle Note Playback (Right Stick Magnitude)
+    // Play note if magnitude is high enough (selected)
+    // noteIdx is already determined in Step 1 based on rMag > 0.6
+    // We reuse rMag from Step 1 scope if we remove the redeclaration, 
+    // BUT rMag was declared with const inside the Step 1 block? 
+    // No, it was declared at top level of useEffect in line 298.
+    // Wait, in line 298: const rMag = gamepad.axes.right.magnitude;
+    // It is in the useEffect scope.
+    
+    const shouldPlayMelody = rMag > 0.6 && noteIdx !== null;
+
+    if (shouldPlayMelody && noteIdx !== null) {
       const selectedItem = melodyLabels[noteIdx];
       // Handle object label
       let selectedLabel = '';
@@ -441,25 +369,35 @@ function App() {
         const fullNote = scaleNotes.find(n => n.startsWith(selectedLabel));
         const noteToPlay = fullNote || selectedLabel + '4'; // Fallback
 
-        // Remap trigger value (0.05-1.0) to velocity (0.3-1.0) for better response
-        const velocity = 0.5 + (noteTrigger * 0.7);
+        // Apply Octave Offset
+        let finalNote = noteToPlay;
+        if (melodyOctaveOffset !== 0) {
+           finalNote = transpose(noteToPlay, melodyOctaveOffset * 12);
+        }
 
-        if (noteToPlay !== playingNote) {
+        // Map magnitude (0.6-1.0) to velocity (0.5-1.0)
+        // Triggers are no longer required, but if right trigger is pulled, maybe boost?
+        // Let's stick to magnitude for now.
+        const velocity = 0.5 + ((rMag - 0.6) / 0.4) * 0.5;
+
+        if (finalNote !== playingNote) {
           if (playingNote) audioEngine.stopNote(playingNote);
-          audioEngine.playNote(noteToPlay, velocity);
-          setPlayingNote(noteToPlay);
+          audioEngine.playNote(finalNote, velocity);
+          setPlayingNote(finalNote); 
         }
       }
     } else {
       if (playingNote) {
-        audioEngine.stopNote(playingNote);
+        audioEngine.stopNote(playingNote); 
         setPlayingNote(null);
       }
     }
 
-    // 4. Handle Chord Playback (Left Trigger)
-    const chordTrigger = gamepad.triggers.left;
-    if (chordTrigger > 0.05 && chordIdx !== null) {
+    // 4. Handle Chord Playback (Left Stick Magnitude)
+    // Play chord if magnitude is high enough (selected)
+    const shouldPlayChord = lMag > 0.6 && chordIdx !== null;
+
+    if (shouldPlayChord && chordIdx !== null) {
       const selectedItem = chordLabels[chordIdx];
       // Handle object label
       // For Diatonic: Main is Roman (I), Sub is Note (C). We want Note.
@@ -515,8 +453,8 @@ function App() {
 
           if (chordFingerprint !== playingFingerprint) {
             if (playingChord) audioEngine.stopChord(playingChord);
-            // Remap trigger to velocity
-            const velocity = 0.5 + (chordTrigger * 0.7);
+            // Map magnitude to velocity
+            const velocity = 0.5 + ((lMag - 0.6) / 0.4) * 0.5;
             audioEngine.playChord(chordNotes, velocity);
             setPlayingChord(chordNotes);
           }
@@ -529,7 +467,7 @@ function App() {
       }
     }
 
-  }, [gamepad, melodyLabels, chordLabels, scaleNotes, chordInversionOffset, activeChordType, sliceCount, currentRootWithOctave, currentMode]);
+  }, [gamepad, melodyLabels, chordLabels, scaleNotes, chordInversionOffset, activeChordType, sliceCount, currentRootWithOctave, currentMode, melodyOctaveOffset]);
 
   return (
     <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-start p-8 font-sans pt-32">
@@ -574,12 +512,6 @@ function App() {
           <Settings size={16} />
           <span>Mode: <strong className="text-white">{getModeLabel(currentMode)}</strong></span>
         </div>
-        <div className="flex items-center gap-1">
-          <ArrowLeftRight size={16} />
-          <span>Inversion: <strong className={chordInversionOffset !== 0 ? "text-yellow-400" : "text-white"}>
-            {chordInversionOffset > 0 ? '+' : ''}{chordInversionOffset}
-          </strong></span>
-        </div>
       </div>
       
       {/* Instrument Controls - REMOVED CENTRAL BOX */}
@@ -610,31 +542,35 @@ function App() {
           <div className="relative">
             <div
               className="absolute -inset-4 bg-purple-500/40 rounded-full blur-2xl transition-opacity duration-75 will-change-[opacity]"
-              style={{ opacity: gamepad.triggers.left }}
+              style={{ opacity: playingChord ? 0.3 + Math.max(0, (gamepad.axes.left.magnitude - 0.6) * 1.75) : 0 }}
             />
             <RadialMenu
               items={chordLabels}
               selectedIndex={selectedChordIndex}
               previewIndex={previewChordIndex}
-              isActive={gamepad.triggers.left > 0.05}
+              isActive={playingChord !== null}
               color="purple"
-              label="CHORDS"
+              label={playingChord ? (
+                <div className="flex flex-col items-center">
+                   <span className="text-purple-300 font-bold text-xl animate-pulse whitespace-nowrap">
+                     {detectChordName(playingChord)}
+                   </span>
+                   {/* Optional: Smaller subtext for notes if desired, or omit for cleaner look */}
+                </div>
+              ) : "CHORDS"}
               className="w-80 h-80"
             />
       </div>
 
-          {/* Chord Info */}
-          <div className="absolute -bottom-16 left-0 right-0 text-center h-16 flex flex-col items-center justify-end">
-            {playingChord && (
-              <>
-                <span className="text-purple-300 font-bold text-xl animate-pulse block">
-                  {detectChordName(playingChord)}
-                </span>
-                <span className="text-purple-400/70 font-mono text-xs">
-                  {playingChord.map(n => n.replace(/\d+/, '')).join(' ')}
-                </span>
-              </>
-            )}
+          {/* Inversion UI */}
+          <div className="flex flex-col items-center gap-1 mt-2">
+             <div className="flex items-center gap-1 text-sm text-slate-400">
+               <ArrowLeftRight size={14} />
+               <span>Inversion <span className="text-xs text-slate-500">(1/3 octave)</span></span>
+             </div>
+             <strong className={`text-lg ${chordInversionOffset !== 0 ? "text-purple-400" : "text-white"}`}>
+               {chordInversionOffset > 0 ? '+' : ''}{chordInversionOffset}
+             </strong>
           </div>
 
         </div>
@@ -663,27 +599,35 @@ function App() {
           <div className="relative">
             <div
               className="absolute -inset-4 bg-blue-500/40 rounded-full blur-2xl transition-opacity duration-75 will-change-[opacity]"
-              style={{ opacity: gamepad.triggers.right }}
+              style={{ opacity: playingNote ? 0.3 + Math.max(0, (gamepad.axes.right.magnitude - 0.6) * 1.75) : 0 }}
             />
             <RadialMenu
               items={melodyLabels}
               selectedIndex={selectedNoteIndex}
               previewIndex={previewNoteIndex}
-              isActive={gamepad.triggers.right > 0.05}
+              secondaryIndices={activeNoteIndices}
+              isActive={playingNote !== null}
               color="blue"
-              label="MELODY"
+              label={playingNote ? (
+                <span className="text-blue-300 font-bold text-xl animate-pulse">
+                  {playingNote.replace(/\d+/, '')}
+                </span>
+              ) : "MELODY"}
               className="w-80 h-80"
             />
           </div>
 
-          {/* Note Info */}
-          <div className="absolute -bottom-12 left-0 right-0 text-center h-8">
-            {playingNote && (
-              <span className="text-blue-300 font-mono text-xl font-bold animate-bounce">
-                {playingNote.replace(/\d+/, '')}
-              </span>
-            )}
+          {/* Melody Octave UI */}
+          <div className="flex flex-col items-center gap-1 mt-2">
+             <div className="flex items-center gap-1 text-sm text-slate-400">
+               <ArrowLeftRight size={14} />
+               <span>Octave</span>
+             </div>
+             <strong className={`text-lg ${melodyOctaveOffset !== 0 ? "text-blue-400" : "text-white"}`}>
+               {melodyOctaveOffset > 0 ? '+' : ''}{melodyOctaveOffset}
+             </strong>
           </div>
+
         </div>
 
       </div>

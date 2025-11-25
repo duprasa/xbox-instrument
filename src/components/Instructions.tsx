@@ -40,16 +40,13 @@ export const Instructions = () => {
             </h3>
             <ul className="space-y-2 list-disc list-inside">
               <li>
-                <strong className="text-blue-300">Right Stick</strong>: Tilt to select a <strong>Note</strong>.
+                <strong className="text-blue-300">Right Stick</strong>: Tilt to select and play a <strong>Note</strong>. Push fully to play louder.
               </li>
               <li>
-                <strong className="text-blue-300">Right Trigger</strong>: Play the selected Note. Pull harder for louder volume.
+                <strong className="text-purple-300">Left Stick</strong>: Tilt to select and play a <strong>Chord</strong>. Push fully to play louder.
               </li>
               <li>
-                <strong className="text-purple-300">Left Stick</strong>: Tilt to select a <strong>Chord</strong>.
-              </li>
-              <li>
-                <strong className="text-purple-300">Left Trigger</strong>: Play the selected Chord.
+                <strong className="text-slate-300">LS / RS Click</strong>: Toggle between Synth and Piano instruments.
               </li>
             </ul>
           </div>
@@ -68,9 +65,15 @@ export const Instructions = () => {
                 </span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="bg-slate-700 px-1.5 rounded text-xs font-bold mt-0.5 whitespace-nowrap">LB / RB</span>
+                <span className="bg-slate-700 px-1.5 rounded text-xs font-bold mt-0.5 whitespace-nowrap">Start / Back</span>
                 <span>
                   Cycle through <strong>Modes</strong> (Scales). Try 'Aeolian' for sadder sounds or 'Mixolydian' for bluesy vibes.
+                </span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="bg-slate-700 px-1.5 rounded text-xs font-bold mt-0.5 whitespace-nowrap">LB / RB</span>
+                <span>
+                   Change the <strong>Root Note</strong> (Key) via Circle of Fifths.
                 </span>
               </li>
             </ul>
@@ -86,7 +89,7 @@ export const Instructions = () => {
               <li className="flex items-start gap-2">
                 <ArrowUpCircle className="w-4 h-4 mt-0.5 shrink-0" />
                 <span>
-                  <strong>D-Pad Up/Down</strong>: Change the <strong>Root Note</strong> (Key).
+                  <strong>D-Pad Up/Down</strong>: Change <strong>Melody Octave</strong>.
                 </span>
               </li>
               <li className="flex items-start gap-2">

@@ -11,13 +11,23 @@ interface RadialMenuProps {
   items: (string | RadialMenuItem)[];
   selectedIndex: number | null;
   previewIndex?: number | null;
+  secondaryIndices?: number[]; // Indices to highlight subtly (e.g. notes in active chord)
   isActive: boolean; // e.g. trigger pulled
   color?: 'blue' | 'purple';
-  label?: string;
+  label?: React.ReactNode;
   className?: string;
 }
 
-export const RadialMenu: React.FC<RadialMenuProps> = ({ items, selectedIndex, previewIndex, isActive, color = 'blue', label, className }) => {
+export const RadialMenu: React.FC<RadialMenuProps> = ({ 
+  items, 
+  selectedIndex, 
+  previewIndex, 
+  secondaryIndices = [], 
+  isActive, 
+  color = 'blue', 
+  label, 
+  className 
+}) => {
   const radius = 100;
   const center = 110; // Center shifted to accommodate stroke width
   const viewBoxSize = 220; // Increased from 200 to prevent clipping
@@ -60,6 +70,7 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, selectedIndex, pr
           
           const isSelected = index === selectedIndex;
           const isPreview = index === previewIndex && !isSelected;
+          const isSecondary = secondaryIndices.includes(index) && !isSelected;
           
           const pathData = [
             `M ${center} ${center}`,
@@ -73,6 +84,10 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, selectedIndex, pr
               if (isActive) return color === 'blue' ? '#3b82f6' : '#a855f7'; // Active (Bright)
               return color === 'blue' ? '#60a5fa' : '#c084fc'; // Selected (Dim)
             }
+            if (isSecondary) {
+               // Use the same purple as the active state but rely on opacity to make it subtle
+               return '#a855f7'; // purple-500
+            }
             if (isPreview) return '#334155';
             return '#1e293b';
           };
@@ -83,6 +98,7 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, selectedIndex, pr
           
           const getOpacity = () => {
              if (isSelected) return "opacity-100";
+             if (isSecondary) return "opacity-25"; // Very subtle but distinctly purple
              if (isPreview) return "opacity-80";
              return "opacity-50";
           };
@@ -145,7 +161,11 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, selectedIndex, pr
       
       {/* Center Label */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <span className="text-white font-bold text-sm text-center">{label}</span>
+        {typeof label === 'string' ? (
+          <span className="text-white font-bold text-sm text-center">{label}</span>
+        ) : (
+          label
+        )}
       </div>
     </div>
   );
